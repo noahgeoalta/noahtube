@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>NoahTube</title>
-<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500&family=Cinzel:wght@500;600&display=swap" rel="stylesheet">
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -131,12 +131,14 @@
 
   .card-body { padding: 8px 10px 10px; }
   .card-title {
-    font-size: 13px;
-    font-weight: 400;
+    font-size: 15px;
+    font-weight: 600;
+    font-family: 'Cinzel', serif;
     color: #e8d9c0;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    letter-spacing: 0.03em;
   }
   .card-sub { font-size: 11px; color: #6a5030; margin-top: 2px; }
 
@@ -287,15 +289,16 @@
 </div>
 <script>
 const API_KEY = 'AIzaSyBZN1fX8QCV1zRQNkANXK2rhOgdnS9mIuk';
+const BASE = 'https://raw.githubusercontent.com/noahgeoalta/noahtube/main/Playlist%20images/';
 const PLAYLISTS = [
-  { id: 'PLQLYASJYnD3SbbkJXfLHlEiCDtVClnQO3', name: 'WarCraft III' },
-  { id: 'PLQLYASJYnD3Rn7nN-A8fO-x6RrYwUcGnF', name: 'World of Warcraft' },
-  { id: 'PLQLYASJYnD3T-MrNTRFisyoLN3Bgk-sXe', name: 'StarCraft' },
-  { id: 'PLQLYASJYnD3SKhk3dk91biYoLtI857xhG', name: 'DOTA' },
-  { id: 'PLQLYASJYnD3QBmKC_qDeN3iWd05lcXeFh', name: 'Diablo I & II' },
-  { id: 'PLQLYASJYnD3RdUMxUqIS2XdRpvEU5Nppy', name: 'Elder Scrolls Books' },
-  { id: 'PLQLYASJYnD3TSKLynNvJaVxCpDwbBSMgq', name: 'World of Warcraft OST' },
-  { id: 'PLQLYASJYnD3RIXOqOow_gT9Pp0Kt4C9ty', name: 'Warhammer' },
+  { id: 'PLQLYASJYnD3SbbkJXfLHlEiCDtVClnQO3', name: 'WarCraft III',          thumb: BASE+'warcraftiii.jpg' },
+  { id: 'PLQLYASJYnD3Rn7nN-A8fO-x6RrYwUcGnF', name: 'World of Warcraft',     thumb: BASE+'wowgameplay.jpg' },
+  { id: 'PLQLYASJYnD3T-MrNTRFisyoLN3Bgk-sXe', name: 'StarCraft',             thumb: BASE+'starcraft.jpg' },
+  { id: 'PLQLYASJYnD3SKhk3dk91biYoLtI857xhG', name: 'DOTA',                  thumb: BASE+'Dota.jpg' },
+  { id: 'PLQLYASJYnD3QBmKC_qDeN3iWd05lcXeFh', name: 'Diablo I & II',         thumb: BASE+'diablo.jpg' },
+  { id: 'PLQLYASJYnD3RdUMxUqIS2XdRpvEU5Nppy', name: 'Elder Scrolls Books',   thumb: BASE+'eso.jpg' },
+  { id: 'PLQLYASJYnD3TSKLynNvJaVxCpDwbBSMgq', name: 'World of Warcraft OST', thumb: BASE+'wowost.jpg' },
+  { id: 'PLQLYASJYnD3RIXOqOow_gT9Pp0Kt4C9ty', name: 'Warhammer',             thumb: BASE+'Warhammer.jpg' },
 ];
 
 let ytPlayer = null, currentVideos = [], currentIndex = 0, currentPlaylistId = null, saveTimer = null, videoDurations = {};
@@ -350,8 +353,7 @@ async function renderPlaylists() {
   const cards = await Promise.all(PLAYLISTS.map(async pl => {
     try {
       const info = await fetchPlaylistInfo(pl.id);
-      const thumbs = info?.snippet?.thumbnails;
-      const thumb = thumbs?.maxres?.url || thumbs?.standard?.url || thumbs?.high?.url || thumbs?.medium?.url || '';
+      const thumb = pl.thumb;
       const count = info?.contentDetails?.itemCount || '?';
       const wd = getWatchData(pl.id);
       const hasProgress = (wd.currentIdx > 0) || Object.keys(wd.videos||{}).length > 0;

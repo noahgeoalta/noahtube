@@ -38,14 +38,19 @@
   }
 
   .logo-wrap {
-    text-align: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 24px;
     padding: 18px 0 18px;
   }
   .logo-wrap img {
-    height: 90px;
-    width: auto;
     filter: drop-shadow(0 2px 14px rgba(0,0,0,0.9));
+    object-fit: contain;
   }
+  .logo-sc { height: 36px; }
+  .logo-wc { height: 72px; }
+  .logo-d2 { height: 52px; }
 
   .playlist-grid {
     display: grid;
@@ -255,7 +260,9 @@
 
   <div id="playlist-screen">
     <div class="logo-wrap">
-      <img src="https://raw.githubusercontent.com/noahgeoalta/noahtube/main/warcraft.jpg" alt="WarCraft">
+      <img class="logo-sc" src="https://raw.githubusercontent.com/noahgeoalta/noahtube/main/StarCraft_Logo.jpg" alt="StarCraft">
+      <img class="logo-wc" src="https://raw.githubusercontent.com/noahgeoalta/noahtube/main/warcraft.jpg" alt="WarCraft">
+      <img class="logo-d2" src="https://raw.githubusercontent.com/noahgeoalta/noahtube/main/Diablo_2.jpg" alt="Diablo">
     </div>
     <div class="playlist-grid" id="playlist-grid">
       <div class="loading">Loading...</div>
@@ -343,7 +350,8 @@ async function renderPlaylists() {
   const cards = await Promise.all(PLAYLISTS.map(async pl => {
     try {
       const info = await fetchPlaylistInfo(pl.id);
-      const thumb = info?.snippet?.thumbnails?.medium?.url || '';
+      const thumbs = info?.snippet?.thumbnails;
+      const thumb = thumbs?.maxres?.url || thumbs?.standard?.url || thumbs?.high?.url || thumbs?.medium?.url || '';
       const count = info?.contentDetails?.itemCount || '?';
       const wd = getWatchData(pl.id);
       const hasProgress = (wd.currentIdx > 0) || Object.keys(wd.videos||{}).length > 0;

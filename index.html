@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NoahTube</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #0d0d0d;
+    color: #e0e0e0;
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 300;
+    min-height: 100vh;
+  }
+
+  #app { padding: 20px 16px 40px; max-width: 1000px; margin: 0 auto; }
+
+  /* ── PLAYLIST GRID ── */
+  #playlist-screen {}
+
+  .playlist-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+  }
+
+  @media (min-width: 600px) {
+    .playlist-grid { grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  }
+  @media (min-width: 900px) {
+    .playlist-grid { grid-template-columns: repeat(4, 1fr); }
+  }
+
+  .playlist-card {
+    cursor: pointer;
+    position: relative;
+    background: #1a1a1a;
+    border-radius: 4px;
+    overflow: hidden;
+    animation: fadeIn 0.3s ease both;
+  }
+
+  .playlist-card:nth-child(1) { animation-delay: 0.03s; }
+  .playlist-card:nth-child(2) { animation-delay: 0.06s; }
+  .playlist-card:nth-child(3) { animation-delay: 0.09s; }
+  .playlist-card:nth-child(4) { animation-delay: 0.12s; }
+  .playlist-card:nth-child(5) { animation-delay: 0.15s; }
+  .playlist-card:nth-child(6) { animation-delay: 0.18s; }
+  .playlist-card:nth-child(7) { animation-delay: 0.21s; }
+  .playlist-card:nth-child(8) { animation-delay: 0.24s; }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .playlist-card:active { opacity: 0.75; }
+
+  .card-thumb {
+    width: 100%;
+    aspect-ratio: 16/9;
+    overflow: hidden;
+    position: relative;
+    background: #222;
+  }
+
+  .card-thumb img {
+    width: 100%; height: 100%;
+    object-fit: cover;
+    display: block;
+    transition: transform 0.3s ease;
+  }
+
+  .playlist-card:hover .card-thumb img { transform: scale(1.04); }
+
+  .card-count {
+    position: absolute;
+    bottom: 6px;
+    right: 7px;
+    background: rgba(0,0,0,0.75);
+    color: #ccc;
+    font-size: 11px;
+    font-weight: 400;
+    padding: 2px 6px;
+    border-radius: 2px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .card-count svg { opacity: 0.7; }
+
+  .resume-dot {
+    position: absolute;
+    top: 7px;
+    left: 7px;
+    width: 8px; height: 8px;
+    background: #ff4444;
+    border-radius: 50%;
+  }
+
+  .card-body {
+    padding: 9px 10px 11px;
+  }
+
+  .card-title {
+    font-size: 13px;
+    font-weight: 400;
+    color: #e0e0e0;
+    line-height: 1.35;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .card-sub {
+    font-size: 11px;
+    color: #555;
+    margin-top: 2px;
+  }
+
+  /* ── LOADING ── */
+  .loading {
+    grid-column: 1/-1;
+    text-align: center;
+    padding: 60px;
+    font-size: 12px;
+    color: #444;
+    letter-spacing: 0.1em;
+  }
+
+  .error-msg {
+    grid-column: 1/-1;
+    text-align: center;
+    padding: 40px;
+    color: #884444;
+    font-size: 12px;
+  }
+
+  /* ── PLAYER SCREEN ── */
+  #player-screen {
+    display: none;
+    animation: fadeIn 0.2s ease;
+  }
+
+  .player-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 0 0 14px;
+  }
+
+  .back-btn {
+    background: none;
+    border: none;
+    color: #555;
+    cursor: pointer;
+    font-size: 20px;
+    line-height: 1;
+    padding: 4px;
+    transition: color 0.15s;
+    font-family: inherit;
+  }
+  .back-btn:hover { color: #e0e0e0; }
+
+  .player-title {
+    font-size: 14px;
+    font-weight: 400;
+    color: #aaa;
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .player-wrap {
+    width: 100%;
+    aspect-ratio: 16/9;
+    background: #000;
+    border-radius: 4px;
+    overflow: hidden;
+    position: relative;
+  }
+
+  #yt-player {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+  }
+
+  /* ── VIDEO LIST ── */
+  .vl-header {
+    display: flex;
+    align-items: center;
+    padding: 16px 0 8px;
+    border-bottom: 1px solid #1e1e1e;
+    margin-bottom: 4px;
+  }
+
+  .vl-label {
+    font-size: 11px;
+    color: #444;
+    letter-spacing: 0.08em;
+    flex: 1;
+  }
+
+  .vl-count { font-size: 11px; color: #444; }
+
+  .video-list {
+    overflow-y: auto;
+    max-height: calc(100vh - 56.25vw - 120px);
+    min-height: 180px;
+  }
+
+  .video-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 8px 0;
+    cursor: pointer;
+    border-bottom: 1px solid #161616;
+    transition: opacity 0.15s;
+  }
+
+  .video-item:hover { opacity: 0.75; }
+  .video-item.active { opacity: 1; }
+
+  .vi-num {
+    font-size: 11px;
+    color: #444;
+    min-width: 18px;
+    padding-top: 3px;
+    text-align: right;
+  }
+
+  .video-item.active .vi-num { color: #fff; }
+
+  .vi-thumb {
+    width: 88px;
+    min-width: 88px;
+    aspect-ratio: 16/9;
+    background: #1a1a1a;
+    border-radius: 2px;
+    overflow: hidden;
+  }
+
+  .vi-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+  .vi-info { flex: 1; overflow: hidden; padding-top: 1px; }
+
+  .vi-title {
+    font-size: 12px;
+    color: #bbb;
+    line-height: 1.4;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .video-item.active .vi-title { color: #fff; }
+
+  /* scrollbar */
+  ::-webkit-scrollbar { width: 3px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #2a2a2a; border-radius: 2px; }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- PLAYLIST SCREEN -->
+  <div id="playlist-screen">
+    <div class="playlist-grid" id="playlist-grid">
+      <div class="loading">Loading...</div>
+    </div>
+  </div>
+
+  <!-- PLAYER SCREEN -->
+  <div id="player-screen">
+    <div class="player-header">
+      <button class="back-btn" onclick="goBack()">←</button>
+      <div class="player-title" id="player-title"></div>
+    </div>
+    <div class="player-wrap">
+      <div id="yt-player"></div>
+    </div>
+    <div class="vl-header">
+      <div class="vl-label">UP NEXT</div>
+      <div class="vl-count" id="vl-count"></div>
+    </div>
+    <div class="video-list" id="video-list"></div>
+  </div>
+
+</div>
+
+<script>
+const API_KEY = 'AIzaSyBZN1fX8QCV1zRQNkANXK2rhOgdnS9mIuk';
+
+const PLAYLISTS = [
+  { id: 'PLQLYASJYnD3SbbkJXfLHlEiCDtVClnQO3', name: 'WarCraft III' },
+  { id: 'PLQLYASJYnD3Rn7nN-A8fO-x6RrYwUcGnF', name: 'World of Warcraft' },
+  { id: 'PLQLYASJYnD3T-MrNTRFisyoLN3Bgk-sXe', name: 'StarCraft' },
+  { id: 'PLQLYASJYnD3SKhk3dk91biYoLtI857xhG', name: 'DOTA' },
+  { id: 'PLQLYASJYnD3QBmKC_qDeN3iWd05lcXeFh', name: 'Diablo I & II' },
+  { id: 'PLQLYASJYnD3RdUMxUqIS2XdRpvEU5Nppy', name: 'Elder Scrolls Books' },
+  { id: 'PLQLYASJYnD3TSKLynNvJaVxCpDwbBSMgq', name: 'World of Warcraft OST' },
+  { id: 'PLQLYASJYnD3RIXOqOow_gT9Pp0Kt4C9ty', name: 'Warhammer' },
+];
+
+let ytPlayer = null;
+let currentVideos = [];
+let currentIndex = 0;
+let currentPlaylistId = null;
+let saveTimer = null;
+
+function saveProgress(plId, idx, vidId, time) {
+  try { localStorage.setItem('nt_' + plId, JSON.stringify({ idx, vidId, time })); } catch(e) {}
+}
+function loadProgress(plId) {
+  try { const d = localStorage.getItem('nt_' + plId); return d ? JSON.parse(d) : null; } catch(e) { return null; }
+}
+
+window.onYouTubeIframeAPIReady = function() {};
+
+function loadYTApi() {
+  if (window.YT) return;
+  const s = document.createElement('script');
+  s.src = 'https://www.youtube.com/iframe_api';
+  document.head.appendChild(s);
+}
+loadYTApi();
+
+async function fetchPlaylistInfo(id) {
+  const r = await fetch(`https://www.googleapis.com/youtube/v3/playlists?part=snippet,contentDetails&id=${id}&key=${API_KEY}`);
+  const d = await r.json();
+  return d.items?.[0] || null;
+}
+
+async function fetchPlaylistItems(id) {
+  let items = [], pageToken = '';
+  do {
+    const r = await fetch(`https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&maxResults=50&playlistId=${id}&key=${API_KEY}${pageToken ? '&pageToken='+pageToken : ''}`);
+    const d = await r.json();
+    if (d.error) throw new Error(d.error.message);
+    items = items.concat(d.items || []);
+    pageToken = d.nextPageToken || '';
+  } while (pageToken);
+  return items;
+}
+
+async function renderPlaylists() {
+  const grid = document.getElementById('playlist-grid');
+  grid.innerHTML = '<div class="loading">Loading...</div>';
+
+  const cards = await Promise.all(PLAYLISTS.map(async (pl, i) => {
+    try {
+      const info = await fetchPlaylistInfo(pl.id);
+      const thumb = info?.snippet?.thumbnails?.medium?.url || info?.snippet?.thumbnails?.high?.url || '';
+      const count = info?.contentDetails?.itemCount || '?';
+      const progress = loadProgress(pl.id);
+      return { pl, thumb, count, progress };
+    } catch(e) {
+      return { pl, thumb: '', count: '?', progress: null };
+    }
+  }));
+
+  grid.innerHTML = cards.map(({ pl, thumb, count, progress }) => `
+    <div class="playlist-card" onclick="openPlaylist('${pl.id}', '${pl.name.replace(/'/g,"\\'")}')">
+      <div class="card-thumb">
+        ${thumb ? `<img src="${thumb}" alt="" loading="lazy">` : ''}
+        <div class="card-count">
+          <svg width="11" height="9" viewBox="0 0 11 9" fill="none"><rect y="0" width="11" height="1.5" fill="currentColor"/><rect y="3.5" width="8" height="1.5" fill="currentColor"/><rect y="7" width="9" height="1.5" fill="currentColor"/></svg>
+          ${count}
+        </div>
+        ${progress ? '<div class="resume-dot"></div>' : ''}
+      </div>
+      <div class="card-body">
+        <div class="card-title">${pl.name}</div>
+        <div class="card-sub">${progress ? 'Resume · #' + (progress.idx + 1) : ''}</div>
+      </div>
+    </div>
+  `).join('');
+}
+
+async function openPlaylist(plId, name) {
+  currentPlaylistId = plId;
+  document.getElementById('playlist-screen').style.display = 'none';
+  document.getElementById('player-screen').style.display = 'block';
+  document.getElementById('player-title').textContent = name;
+  document.getElementById('video-list').innerHTML = '<div style="padding:30px;text-align:center;font-size:12px;color:#444;">Loading...</div>';
+
+  try {
+    const items = await fetchPlaylistItems(plId);
+    currentVideos = items.filter(it => it.snippet?.resourceId?.videoId && it.snippet.title !== 'Private video' && it.snippet.title !== 'Deleted video');
+    const progress = loadProgress(plId);
+    currentIndex = progress ? Math.min(progress.idx, currentVideos.length - 1) : 0;
+    document.getElementById('vl-count').textContent = currentVideos.length;
+    renderVideoList();
+    playVideo(currentIndex, progress?.time || 0);
+  } catch(e) {
+    document.getElementById('video-list').innerHTML = `<div style="padding:30px;text-align:center;font-size:12px;color:#884444;">Failed: ${e.message}</div>`;
+  }
+}
+
+function renderVideoList() {
+  document.getElementById('video-list').innerHTML = currentVideos.map((v, i) => {
+    const s = v.snippet;
+    const thumb = s?.thumbnails?.default?.url || '';
+    return `
+      <div class="video-item ${i === currentIndex ? 'active' : ''}" id="vi-${i}" onclick="playVideo(${i}, 0)">
+        <div class="vi-num">${i + 1}</div>
+        <div class="vi-thumb">${thumb ? `<img src="${thumb}" loading="lazy">` : ''}</div>
+        <div class="vi-info"><div class="vi-title">${s?.title || ''}</div></div>
+      </div>
+    `;
+  }).join('');
+  setTimeout(() => document.getElementById('vi-' + currentIndex)?.scrollIntoView({ block: 'nearest' }), 100);
+}
+
+function updateActive(idx) {
+  document.querySelectorAll('.video-item').forEach((el, i) => el.classList.toggle('active', i === idx));
+  document.getElementById('vi-' + idx)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+}
+
+function playVideo(idx, startTime) {
+  currentIndex = idx;
+  updateActive(idx);
+  const videoId = currentVideos[idx]?.snippet?.resourceId?.videoId;
+  if (!videoId) return;
+
+  if (ytPlayer?.loadVideoById) {
+    ytPlayer.loadVideoById({ videoId, startSeconds: startTime || 0 });
+  } else if (window.YT?.Player) {
+    try { ytPlayer?.destroy(); } catch(e) {}
+    ytPlayer = new YT.Player('yt-player', {
+      videoId,
+      playerVars: { autoplay: 1, start: Math.floor(startTime || 0), rel: 0, modestbranding: 1, playsinline: 1 },
+      events: {
+        onStateChange: e => { if (e.data === 0 && currentIndex < currentVideos.length - 1) playVideo(currentIndex + 1, 0); },
+        onReady: e => e.target.playVideo()
+      }
+    });
+  } else {
+    setTimeout(() => playVideo(idx, startTime), 500);
+  }
+  startSaveTimer();
+}
+
+function startSaveTimer() {
+  if (saveTimer) clearInterval(saveTimer);
+  saveTimer = setInterval(() => {
+    try {
+      const time = ytPlayer?.getCurrentTime?.();
+      const videoId = currentVideos[currentIndex]?.snippet?.resourceId?.videoId;
+      if (time) saveProgress(currentPlaylistId, currentIndex, videoId, time);
+    } catch(e) {}
+  }, 5000);
+}
+
+function goBack() {
+  if (saveTimer) clearInterval(saveTimer);
+  try { ytPlayer?.pauseVideo(); } catch(e) {}
+  document.getElementById('player-screen').style.display = 'none';
+  document.getElementById('playlist-screen').style.display = 'block';
+  renderPlaylists();
+}
+
+renderPlaylists();
+</script>
+</body>
+</html>

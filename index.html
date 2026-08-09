@@ -94,14 +94,38 @@
   .player-add-btn.hidden { display: none; }
   .player-wrap { width: 100%; aspect-ratio: 16/9; background: #000; border-radius: 3px; overflow: hidden; position: relative; }
   #yt-player { position: absolute; inset: 0; width: 100%; height: 100%; }
+
+  /* Ad overlay — fades out bottom-right corner on hover so skip button is reachable */
   #ad-overlay {
-    display: none; position: absolute; inset: 0; background: #000; z-index: 10;
+    display: none; position: absolute; inset: 0; z-index: 10;
     align-items: center; justify-content: center; flex-direction: column; gap: 10px;
+    /* Solid black everywhere except bottom-right corner */
+    background: #000;
+    /* On hover, a transparent "hole" appears in the bottom-right via a radial gradient mask */
+    -webkit-mask-image: radial-gradient(ellipse 0% 0% at 100% 100%, transparent 0%, black 0%);
+    mask-image: radial-gradient(ellipse 0% 0% at 100% 100%, transparent 0%, black 0%);
+    transition: -webkit-mask-image 0.3s ease, mask-image 0.3s ease;
+    pointer-events: auto;
   }
   #ad-overlay.active { display: flex; }
+  /* When hovering the bottom-right ~30% of the overlay, make it transparent there */
+  #ad-overlay:hover {
+    -webkit-mask-image: radial-gradient(ellipse 55% 40% at 100% 100%, transparent 60%, black 80%);
+    mask-image: radial-gradient(ellipse 55% 40% at 100% 100%, transparent 60%, black 80%);
+    cursor: default;
+  }
+  /* The transparent zone should also not capture pointer events so clicks pass through to YT */
+  #ad-overlay::after {
+    content: '';
+    position: absolute;
+    bottom: 0; right: 0;
+    width: 35%; height: 30%;
+    pointer-events: none; /* clicks pass through to YouTube iframe below */
+  }
   .ad-text { color: #3a2810; font-size: 11px; letter-spacing: 0.12em; font-family: 'Cinzel', serif; }
   .ad-rune { font-size: 28px; opacity: 0.15; animation: pulse 2s ease-in-out infinite; }
   @keyframes pulse { 0%,100%{opacity:0.1} 50%{opacity:0.22} }
+
   .vl-header { display: flex; align-items: center; padding: 14px 0 8px; border-bottom: 1px solid rgba(120,80,30,0.2); margin-bottom: 2px; }
   .vl-label { font-size: 11px; color: #5a4020; letter-spacing: 0.08em; flex: 1; }
   .vl-count { font-size: 11px; color: #5a4020; }
@@ -283,7 +307,6 @@ function applyRemoteData(data) {
   Object.keys(data).forEach(function(plId) {
     var remote = data[plId];
     if (!remote) return;
-    // Merge watch data (newer timestamp wins)
     var local = lsGet('nt_' + plId) || {};
     if (remote.wd) {
       var merged = Object.assign({}, local);
@@ -298,14 +321,12 @@ function applyRemoteData(data) {
       }
       lsSet('nt_' + plId, merged);
     }
-    // Removed: union
     if (remote.rm) {
       var localRm = lsGet('nt_rm_' + plId) || [];
       var mergedRm = localRm.slice();
       remote.rm.forEach(function(v) { if (mergedRm.indexOf(v) === -1) mergedRm.push(v); });
       lsSet('nt_rm_' + plId, mergedRm);
     }
-    // Added: union
     if (remote.ad) {
       var localAd = lsGet('nt_add_' + plId) || [];
       var mergedAd = localAd.slice();
@@ -535,7 +556,6 @@ async function reloadPlaylist(autoPlay) {
     var vid = it.snippet && it.snippet.resourceId && it.snippet.resourceId.videoId;
     return vid && rm.indexOf(vid) === -1 && it.snippet.title !== 'Private video' && it.snippet.title !== 'Deleted video';
   });
-  // Append added-but-not-in-playlist videos as stubs
   addedIds.forEach(function(vid) {
     if (!filtered.find(function(it) { return it.snippet && it.snippet.resourceId && it.snippet.resourceId.videoId === vid; })) {
       filtered.push({ snippet: { resourceId: { videoId: vid }, title: '(Added video)', thumbnails: {} }, _added: true });
@@ -569,7 +589,6 @@ async function doAddRandomVideo(plId) {
     if (!videos.length) { showToast('No videos found'); return; }
     var rm = getRemovedIds(plId);
     var existing = [];
-    // collect existing video IDs
     try {
       var existingItems = await fetchPlaylistItems(plId);
       existingItems.forEach(function(it) {
@@ -583,7 +602,6 @@ async function doAddRandomVideo(plId) {
       return vid && existing.indexOf(vid) === -1 && rm.indexOf(vid) === -1;
     });
     if (!candidates.length) { showToast('All recent videos already added'); return; }
-    // Prefer from latter half (older)
     var pool = candidates.length > 4 ? candidates.slice(Math.floor(candidates.length/2)) : candidates;
     var pick = pool[Math.floor(Math.random() * pool.length)];
     var vid = pick.snippet && pick.snippet.resourceId && pick.snippet.resourceId.videoId;
@@ -606,7 +624,6 @@ function removeVideo(idx) {
   var vidId = v && v.snippet && v.snippet.resourceId && v.snippet.resourceId.videoId;
   if (!vidId) return;
   addRemovedId(currentPlaylistId, vidId);
-  // Also remove from addedIds if present
   var ad = getAddedIds(currentPlaylistId).filter(function(id) { return id !== vidId; });
   lsSet('nt_add_' + currentPlaylistId, ad);
   var wasActive = idx === currentIndex;

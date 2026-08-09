@@ -95,41 +95,45 @@
   .player-wrap { width: 100%; aspect-ratio: 16/9; background: #000; border-radius: 3px; overflow: hidden; position: relative; }
   #yt-player { position: absolute; inset: 0; width: 100%; height: 100%; }
 
-  /* Ad overlay — fades out bottom-right corner on hover so skip button is reachable */
+  /* Ad overlay — bottom-right stays transparent so skip button is always reachable */
   #ad-overlay {
     display: none; position: absolute; inset: 0; z-index: 10;
     align-items: center; justify-content: center; flex-direction: column; gap: 10px;
-    /* Solid black everywhere except bottom-right corner */
     background: #000;
-    /* On hover, a transparent "hole" appears in the bottom-right via a radial gradient mask */
-    -webkit-mask-image: radial-gradient(ellipse 0% 0% at 100% 100%, transparent 0%, black 0%);
-    mask-image: radial-gradient(ellipse 0% 0% at 100% 100%, transparent 0%, black 0%);
-    transition: -webkit-mask-image 0.3s ease, mask-image 0.3s ease;
-    pointer-events: auto;
-  }
-  #ad-overlay.active { display: flex; }
-  /* When hovering the bottom-right ~30% of the overlay, make it transparent there */
-  #ad-overlay:hover {
     -webkit-mask-image: radial-gradient(ellipse 55% 40% at 100% 100%, transparent 60%, black 80%);
     mask-image: radial-gradient(ellipse 55% 40% at 100% 100%, transparent 60%, black 80%);
-    cursor: default;
+    /* Bottom-right corner is always a click-through hole */
+    pointer-events: none;
   }
-  /* The transparent zone should also not capture pointer events so clicks pass through to YT */
-  #ad-overlay::after {
-    content: '';
-    position: absolute;
-    bottom: 0; right: 0;
-    width: 35%; height: 30%;
-    pointer-events: none; /* clicks pass through to YouTube iframe below */
-  }
-  .ad-text { color: #3a2810; font-size: 11px; letter-spacing: 0.12em; font-family: 'Cinzel', serif; }
-  .ad-rune { font-size: 28px; opacity: 0.15; animation: pulse 2s ease-in-out infinite; }
+  #ad-overlay.active { display: flex; }
+  .ad-text { color: #3a2810; font-size: 11px; letter-spacing: 0.12em; font-family: 'Cinzel', serif; pointer-events: none; }
+  .ad-rune { font-size: 28px; opacity: 0.15; animation: pulse 2s ease-in-out infinite; pointer-events: none; }
   @keyframes pulse { 0%,100%{opacity:0.1} 50%{opacity:0.22} }
 
-  .vl-header { display: flex; align-items: center; padding: 14px 0 8px; border-bottom: 1px solid rgba(120,80,30,0.2); margin-bottom: 2px; }
+  /* Ad toggle bar — sits between player and video list */
+  .ad-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 0 0;
+    gap: 8px;
+  }
+  .ad-toggle-btn {
+    background: rgba(14,9,4,0.85); border: 1px solid rgba(80,60,30,0.4); color: #5a4020;
+    cursor: pointer; font-size: 11px; font-family: 'Cinzel', serif; letter-spacing: 0.08em;
+    padding: 5px 12px; border-radius: 3px; transition: all 0.18s;
+  }
+  .ad-toggle-btn:hover { border-color: rgba(120,90,40,0.6); color: #907050; }
+  .ad-toggle-btn.active {
+    background: rgba(30,8,8,0.9); border-color: rgba(160,60,30,0.6); color: #c05030;
+  }
+  .ad-toggle-btn.active:hover { border-color: rgba(200,80,40,0.8); color: #e06040; }
+  .ad-auto-status { font-size: 10px; color: #3a2810; letter-spacing: 0.05em; }
+
+  .vl-header { display: flex; align-items: center; padding: 10px 0 8px; border-bottom: 1px solid rgba(120,80,30,0.2); margin-bottom: 2px; }
   .vl-label { font-size: 11px; color: #5a4020; letter-spacing: 0.08em; flex: 1; }
   .vl-count { font-size: 11px; color: #5a4020; }
-  .video-list { overflow-y: auto; max-height: calc(100vh - 56.25vw - 120px); min-height: 180px; }
+  .video-list { overflow-y: auto; max-height: calc(100vh - 56.25vw - 160px); min-height: 180px; }
   .video-item {
     display: flex; align-items: flex-start; gap: 10px; padding: 8px 0; cursor: pointer;
     border-bottom: 1px solid rgba(255,255,255,0.03); transition: opacity 0.15s; position: relative;
@@ -214,9 +218,14 @@
       <div id="yt-player"></div>
       <div id="ad-overlay">
         <div class="ad-rune">&#9876;</div>
-        <div class="ad-text">AD PLAYING &#8212; MUTED</div>
+        <div class="ad-text">MUTED</div>
         <div class="ad-rune">&#9876;</div>
       </div>
+    </div>
+    <!-- Ad toggle bar between player and playlist -->
+    <div class="ad-bar">
+      <button class="ad-toggle-btn" id="ad-toggle-btn" onclick="toggleAdManual()">AD</button>
+      <span class="ad-auto-status" id="ad-auto-status"></span>
     </div>
     <div class="vl-header">
       <div class="vl-label">UP NEXT</div>
@@ -275,9 +284,44 @@ var PLAYLISTS = [
 
 // STATE
 var ytPlayer = null, currentVideos = [], currentIndex = 0, currentPlaylistId = null;
-var saveTimer = null, videoDurations = {}, isAdPlaying = false, preMuteVol = 100;
+var saveTimer = null, videoDurations = {}, preMuteVol = 100;
 var syncCode = localStorage.getItem('nt_sync_code') || null;
 var syncTimer = null;
+
+// Ad state — manual overrides auto
+var adManual = false;   // user pressed the AD button
+var adAuto = false;     // auto-detection thinks there's an ad
+var adOverlayOn = false;
+
+function setAdOverlay(on) {
+  adOverlayOn = on;
+  var overlay = document.getElementById('ad-overlay');
+  var btn = document.getElementById('ad-toggle-btn');
+  if (on) {
+    overlay.classList.add('active');
+    btn.classList.add('active');
+    try { preMuteVol = ytPlayer.getVolume(); ytPlayer.mute(); } catch(e) {}
+  } else {
+    overlay.classList.remove('active');
+    btn.classList.remove('active');
+    try { ytPlayer.unMute(); ytPlayer.setVolume(preMuteVol); } catch(e) {}
+  }
+}
+
+// Manual toggle — clicking AD button always wins
+function toggleAdManual() {
+  adManual = !adManual;
+  // If user turns it off manually, also clear auto so it doesn't immediately re-trigger
+  if (!adManual) adAuto = false;
+  setAdOverlay(adManual || adAuto);
+  updateAutoStatus();
+}
+
+function updateAutoStatus() {
+  var el = document.getElementById('ad-auto-status');
+  if (adAuto && !adManual) el.textContent = 'auto-detected';
+  else el.textContent = '';
+}
 
 // TOAST
 var toastTimer = null;
@@ -288,7 +332,7 @@ function showToast(msg) {
   toastTimer = setTimeout(function() { t.classList.remove('show'); }, 2500);
 }
 
-// SYNC (jsonblob.com - free, no auth)
+// SYNC
 function getBlobId() { return syncCode ? localStorage.getItem('nt_blob_' + syncCode) : null; }
 
 function gatherAllData() {
@@ -543,6 +587,10 @@ async function openPlaylist(plId, name) {
   document.getElementById('player-title').textContent = name;
   document.getElementById('video-list').innerHTML = '<div style="padding:30px;text-align:center;font-size:12px;color:#5a4020;">Loading...</div>';
   updateAddBtn();
+  // Reset ad state when opening a new playlist
+  adManual = false; adAuto = false;
+  setAdOverlay(false);
+  updateAutoStatus();
   try { await reloadPlaylist(true); }
   catch(e) { document.getElementById('video-list').innerHTML = '<div style="padding:30px;text-align:center;font-size:12px;color:#884444;">Failed: '+e.message+'</div>'; }
 }
@@ -662,29 +710,22 @@ function updateActive(idx) {
   if (el) el.scrollIntoView({block:'nearest',behavior:'smooth'});
 }
 
-// AD OVERLAY
-function showAdOverlay() {
-  if (isAdPlaying) return;
-  isAdPlaying = true;
-  try { preMuteVol = ytPlayer.getVolume(); ytPlayer.mute(); } catch(e) {}
-  document.getElementById('ad-overlay').classList.add('active');
-}
-function hideAdOverlay() {
-  if (!isAdPlaying) return;
-  isAdPlaying = false;
-  document.getElementById('ad-overlay').classList.remove('active');
-  try { ytPlayer.unMute(); ytPlayer.setVolume(preMuteVol); } catch(e) {}
-}
-
+// AD AUTO-DETECTION (backup only — manual toggle takes priority)
 var adCheckTimer = null;
 function startAdCheck(expectedId) {
   if (adCheckTimer) clearInterval(adCheckTimer);
   adCheckTimer = setInterval(function() {
     if (!ytPlayer || !ytPlayer.getVideoData) return;
+    // If user manually triggered the overlay, don't interfere
+    if (adManual) return;
     try {
       var data = ytPlayer.getVideoData();
-      if (data && data.video_id && data.video_id !== expectedId) showAdOverlay();
-      else if (isAdPlaying) hideAdOverlay();
+      var detected = !!(data && data.video_id && data.video_id !== expectedId);
+      if (detected !== adAuto) {
+        adAuto = detected;
+        setAdOverlay(adAuto);
+        updateAutoStatus();
+      }
     } catch(e) {}
   }, 800);
 }
@@ -699,7 +740,10 @@ function playVideo(idx, startTime) {
     var vp = getVideoProgress(currentPlaylistId, videoId);
     if (vp) startTime = vp.time;
   }
-  hideAdOverlay();
+  // Clear auto ad state on new video, but respect manual
+  adAuto = false;
+  if (!adManual) setAdOverlay(false);
+  updateAutoStatus();
   if (ytPlayer && ytPlayer.loadVideoById) {
     ytPlayer.loadVideoById({ videoId: videoId, startSeconds: startTime||0 });
   } else if (window.YT && window.YT.Player) {
@@ -730,7 +774,7 @@ function startSaveTimer() {
       var time = ytPlayer && ytPlayer.getCurrentTime ? ytPlayer.getCurrentTime() : null;
       var dur = ytPlayer && ytPlayer.getDuration ? ytPlayer.getDuration() : null;
       var videoId = currentVideos[currentIndex] && currentVideos[currentIndex].snippet && currentVideos[currentIndex].snippet.resourceId && currentVideos[currentIndex].snippet.resourceId.videoId;
-      if (time && time > 5 && !isAdPlaying) {
+      if (time && time > 5 && !adOverlayOn) {
         if (dur) videoDurations[videoId] = dur;
         saveProgress(currentPlaylistId, currentIndex, videoId, time);
         var vi = document.getElementById('vi-'+currentIndex);
@@ -750,8 +794,9 @@ function startSaveTimer() {
 function goBack() {
   if (saveTimer) clearInterval(saveTimer);
   if (adCheckTimer) clearInterval(adCheckTimer);
+  adManual = false; adAuto = false;
+  setAdOverlay(false);
   try { if (ytPlayer) ytPlayer.pauseVideo(); } catch(e) {}
-  hideAdOverlay();
   document.getElementById('player-screen').style.display = 'none';
   document.getElementById('playlist-screen').style.display = 'block';
   renderPlaylists();

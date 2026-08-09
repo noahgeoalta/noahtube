@@ -253,12 +253,24 @@ var BLOB_BASE = 'https://jsonblob.com/api/jsonBlob';
 // CHANNEL_ADD: maps playlist ID -> config
 // type 'search'  = YouTube search API filtered by channelId
 // type 'channel' = pull latest 50 from channel uploads playlist
-// oldYears: N    = restrict results to videos published before N years ago (omit for no cutoff)
+// oldYears: N    = only videos published before N years ago
+// titleFilter    = RegExp the video title must match (checked client-side after fetch)
 var CHANNEL_ADD = {
-  // WarCraft III -> WTiiWarcraft, videos 7+ years old only
-  'PLQLYASJYnD3SbbkJXfLHlEiCDtVClnQO3': { type: 'search', channelId: 'UCSLkuZD3BR_4vujh_NKwm1w', query: 'Warcraft', oldYears: 7, label: 'WTiiWarcraft' },
-  // World of Warcraft -> Asmongold, WoW videos 5+ years old only
-  'PLQLYASJYnD3Rn7nN-A8fO-x6RrYwUcGnF': { type: 'search', channelId: 'UCQeRaTukNYft1_6AZPACnog', query: 'World of Warcraft', oldYears: 5, label: 'Asmongold' },
+  // WarCraft III -> WTiiWarcraft, 8+ years old, team game formats only
+  'PLQLYASJYnD3SbbkJXfLHlEiCDtVClnQO3': {
+    type: 'search', channelId: 'UCSLkuZD3BR_4vujh_NKwm1w',
+    query: 'Warcraft 3v3 4v4 5v5 6v6 8v8',
+    oldYears: 8,
+    titleFilter: /[3-9]v[3-9]|[1-9][0-9]v[1-9][0-9]/i,
+    label: 'WTiiWarcraft'
+  },
+  // World of Warcraft -> Asmongold, WoW videos 5+ years old
+  'PLQLYASJYnD3Rn7nN-A8fO-x6RrYwUcGnF': {
+    type: 'search', channelId: 'UCQeRaTukNYft1_6AZPACnog',
+    query: 'World of Warcraft',
+    oldYears: 5,
+    label: 'Asmongold'
+  },
   // StarCraft -> ArtosisCasts uploads
   'PLQLYASJYnD3T-MrNTRFisyoLN3Bgk-sXe': { type: 'channel', channelId: 'UCf0ynO5nqkPq_7Xn-973d2w', label: 'ArtosisCasts' },
   // DOTA -> TheBaltazarTV uploads
@@ -656,9 +668,12 @@ async function doAddRandomVideo(plId) {
     existing = existing.concat(getAddedIds(plId));
     var candidates = videos.filter(function(v) {
       var vid = v.snippet && v.snippet.resourceId && v.snippet.resourceId.videoId;
-      return vid && existing.indexOf(vid) === -1 && rm.indexOf(vid) === -1;
+      var title = v.snippet && v.snippet.title || '';
+      if (!vid || existing.indexOf(vid) !== -1 || rm.indexOf(vid) !== -1) return false;
+      if (cfg.titleFilter && !cfg.titleFilter.test(title)) return false;
+      return true;
     });
-    if (!candidates.length) { showToast('All videos already added'); return; }
+    if (!candidates.length) { showToast('No matching videos found'); return; }
     var pick = candidates[Math.floor(Math.random() * candidates.length)];
     var vid = pick.snippet && pick.snippet.resourceId && pick.snippet.resourceId.videoId;
     var title = pick.snippet && pick.snippet.title || vid;

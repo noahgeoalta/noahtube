@@ -125,7 +125,6 @@
   .vl-header { display: flex; align-items: center; padding: 10px 0 8px; border-bottom: 1px solid rgba(120,80,30,0.2); margin-bottom: 2px; }
   .vl-label { font-size: 11px; color: #5a4020; letter-spacing: 0.08em; flex: 1; }
   .vl-count { font-size: 11px; color: #5a4020; }
-  /* video-list: no height cap — full list flows into the page and the page scrolls */
   .video-list {}
   .video-item {
     display: flex; align-items: flex-start; gap: 10px; padding: 8px 0; cursor: pointer;
@@ -250,23 +249,25 @@ var API_KEY = 'AIzaSyBZN1fX8QCV1zRQNkANXK2rhOgdnS9mIuk';
 var BASE = 'https://raw.githubusercontent.com/noahgeoalta/noahtube/main/Playlist%20images/';
 var BLOB_BASE = 'https://jsonblob.com/api/jsonBlob';
 
-// CHANNEL_ADD: maps playlist ID -> config
-// type 'search'  = YouTube search API filtered by channelId
-// type 'channel' = pull latest 50 from channel uploads playlist
-// oldYears: N    = only videos published before N years ago
-// titleFilter    = RegExp the video title must match (checked client-side after fetch)
+// CHANNEL_ADD config:
+// type 'search'  = YouTube search API within a channel
+// type 'channel' = pull from channel uploads playlist
+// oldYears       = publishedBefore cutoff in years
+// titleFilter    = RegExp applied client-side to the video title
 var CHANNEL_ADD = {
-  // WarCraft III -> WTiiWarcraft, 8+ years old, team game formats only
+  // WarCraft III -> WTiiWarcraft, 8+ years old, title must contain a team format (3v3/4v4/5v5/6v6/8v8)
   'PLQLYASJYnD3SbbkJXfLHlEiCDtVClnQO3': {
-    type: 'search', channelId: 'UCSLkuZD3BR_4vujh_NKwm1w',
-    query: 'Warcraft 3v3 4v4 5v5 6v6 8v8',
+    type: 'search',
+    channelId: 'UCSLkuZD3BR_4vujh_NKwm1w',
+    query: 'Warcraft',
     oldYears: 8,
-    titleFilter: /[3-9]v[3-9]|[1-9][0-9]v[1-9][0-9]/i,
+    titleFilter: /\b(3v3|4v4|5v5|6v6|8v8)\b/i,
     label: 'WTiiWarcraft'
   },
   // World of Warcraft -> Asmongold, WoW videos 5+ years old
   'PLQLYASJYnD3Rn7nN-A8fO-x6RrYwUcGnF': {
-    type: 'search', channelId: 'UCQeRaTukNYft1_6AZPACnog',
+    type: 'search',
+    channelId: 'UCQeRaTukNYft1_6AZPACnog',
     query: 'World of Warcraft',
     oldYears: 5,
     label: 'Asmongold'
@@ -301,7 +302,6 @@ var saveTimer = null, videoDurations = {}, preMuteVol = 100;
 var syncCode = localStorage.getItem('nt_sync_code') || null;
 var syncTimer = null;
 
-// Ad state — manual only
 var adManual = false;
 var adOverlayOn = false;
 
@@ -310,22 +310,15 @@ function setAdOverlay(on) {
   var overlay = document.getElementById('ad-overlay');
   var btn = document.getElementById('ad-toggle-btn');
   if (on) {
-    overlay.classList.add('active');
-    btn.classList.add('active');
+    overlay.classList.add('active'); btn.classList.add('active');
     try { preMuteVol = ytPlayer.getVolume(); ytPlayer.mute(); } catch(e) {}
   } else {
-    overlay.classList.remove('active');
-    btn.classList.remove('active');
+    overlay.classList.remove('active'); btn.classList.remove('active');
     try { ytPlayer.unMute(); ytPlayer.setVolume(preMuteVol); } catch(e) {}
   }
 }
+function toggleAdManual() { adManual = !adManual; setAdOverlay(adManual); }
 
-function toggleAdManual() {
-  adManual = !adManual;
-  setAdOverlay(adManual);
-}
-
-// TOAST
 var toastTimer = null;
 function showToast(msg) {
   var t = document.getElementById('toast');
@@ -334,15 +327,12 @@ function showToast(msg) {
   toastTimer = setTimeout(function() { t.classList.remove('show'); }, 2500);
 }
 
-// SYNC
 function getBlobId() { return syncCode ? localStorage.getItem('nt_blob_' + syncCode) : null; }
 
 function gatherAllData() {
   var out = {};
   PLAYLISTS.forEach(function(pl) {
-    var wd = lsGet('nt_' + pl.id);
-    var rm = lsGet('nt_rm_' + pl.id);
-    var ad = lsGet('nt_add_' + pl.id);
+    var wd = lsGet('nt_' + pl.id), rm = lsGet('nt_rm_' + pl.id), ad = lsGet('nt_add_' + pl.id);
     if (wd || rm || ad) out[pl.id] = { wd: wd || {}, rm: rm || [], ad: ad || [] };
   });
   return out;
@@ -351,8 +341,7 @@ function gatherAllData() {
 function applyRemoteData(data) {
   if (!data || typeof data !== 'object') return;
   Object.keys(data).forEach(function(plId) {
-    var remote = data[plId];
-    if (!remote) return;
+    var remote = data[plId]; if (!remote) return;
     var local = lsGet('nt_' + plId) || {};
     if (remote.wd) {
       var merged = Object.assign({}, local);
@@ -362,20 +351,17 @@ function applyRemoteData(data) {
         var lv = merged.videos[vid];
         if (!lv || rv[vid].updated > lv.updated) merged.videos[vid] = rv[vid];
       });
-      if (remote.wd.currentIdx != null && (merged.currentIdx == null || remote.wd.currentIdx > merged.currentIdx)) {
+      if (remote.wd.currentIdx != null && (merged.currentIdx == null || remote.wd.currentIdx > merged.currentIdx))
         merged.currentIdx = remote.wd.currentIdx;
-      }
       lsSet('nt_' + plId, merged);
     }
     if (remote.rm) {
-      var localRm = lsGet('nt_rm_' + plId) || [];
-      var mergedRm = localRm.slice();
+      var localRm = lsGet('nt_rm_' + plId) || [], mergedRm = localRm.slice();
       remote.rm.forEach(function(v) { if (mergedRm.indexOf(v) === -1) mergedRm.push(v); });
       lsSet('nt_rm_' + plId, mergedRm);
     }
     if (remote.ad) {
-      var localAd = lsGet('nt_add_' + plId) || [];
-      var mergedAd = localAd.slice();
+      var localAd = lsGet('nt_add_' + plId) || [], mergedAd = localAd.slice();
       remote.ad.forEach(function(v) { if (mergedAd.indexOf(v) === -1) mergedAd.push(v); });
       lsSet('nt_add_' + plId, mergedAd);
     }
@@ -384,8 +370,7 @@ function applyRemoteData(data) {
 
 async function syncPush() {
   if (!syncCode) return;
-  var data = gatherAllData();
-  var blobId = getBlobId();
+  var data = gatherAllData(), blobId = getBlobId();
   try {
     if (!blobId) {
       var r = await fetch(BLOB_BASE, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' }, body: JSON.stringify(data) });
@@ -404,8 +389,7 @@ async function syncPush() {
 
 async function syncPull() {
   if (!syncCode) return;
-  var blobId = getBlobId();
-  if (!blobId) return;
+  var blobId = getBlobId(); if (!blobId) return;
   try {
     setSyncStatus('syncing');
     var r = await fetch(BLOB_BASE + '/' + blobId, { headers: { 'Accept': 'application/json' } });
@@ -423,16 +407,12 @@ function scheduleSyncPush() {
 }
 
 function setSyncStatus(s) {
-  var btn = document.getElementById('sync-btn');
-  var lbl = document.getElementById('sync-label');
+  var btn = document.getElementById('sync-btn'), lbl = document.getElementById('sync-label');
   btn.className = 'sync-btn' + (s === 'synced' ? ' synced' : s === 'syncing' ? ' syncing' : '');
   lbl.textContent = s === 'synced' ? syncCode : s === 'syncing' ? 'Syncing...' : 'Sync';
 }
 
-function openSyncModal() {
-  document.getElementById('sync-code-input').value = syncCode || '';
-  document.getElementById('sync-modal').classList.add('open');
-}
+function openSyncModal() { document.getElementById('sync-code-input').value = syncCode || ''; document.getElementById('sync-modal').classList.add('open'); }
 function closeSyncModal() { document.getElementById('sync-modal').classList.remove('open'); }
 function generateNewCode() {
   var w = ['ORC','ELF','HERO','RUNE','BLADE','STORM','ZERG','TAUREN','DEMON','GRYPHON'];
@@ -441,24 +421,17 @@ function generateNewCode() {
 async function applySyncCode() {
   var val = document.getElementById('sync-code-input').value.trim();
   if (!val) { showToast('Enter a sync code first'); return; }
-  syncCode = val;
-  localStorage.setItem('nt_sync_code', syncCode);
-  closeSyncModal();
-  setSyncStatus('syncing');
+  syncCode = val; localStorage.setItem('nt_sync_code', syncCode);
+  closeSyncModal(); setSyncStatus('syncing');
   await syncPull();
   if (!getBlobId()) await syncPush();
-  setSyncStatus('synced');
-  renderPlaylists();
+  setSyncStatus('synced'); renderPlaylists();
 }
 function clearSyncCode() {
-  syncCode = null;
-  localStorage.removeItem('nt_sync_code');
-  closeSyncModal();
-  setSyncStatus('off');
-  showToast('Sync cleared');
+  syncCode = null; localStorage.removeItem('nt_sync_code');
+  closeSyncModal(); setSyncStatus('off'); showToast('Sync cleared');
 }
 
-// LS HELPERS
 function lsGet(key) { try { return JSON.parse(localStorage.getItem(key)); } catch(e) { return null; } }
 function lsSet(key, val) { try { localStorage.setItem(key, JSON.stringify(val)); } catch(e) {} }
 
@@ -467,25 +440,20 @@ function saveProgress(plId, idx, vidId, time) {
   var wd = getWatchData(plId);
   wd.currentIdx = idx; wd.videos = wd.videos || {};
   if (vidId && time > 5) wd.videos[vidId] = { time: time, updated: Date.now() };
-  lsSet('nt_' + plId, wd);
-  scheduleSyncPush();
+  lsSet('nt_' + plId, wd); scheduleSyncPush();
 }
 function getVideoProgress(plId, vidId) { return getWatchData(plId).videos && getWatchData(plId).videos[vidId] || null; }
 function getRemovedIds(plId) { return lsGet('nt_rm_' + plId) || []; }
 function addRemovedId(plId, vidId) {
   var rm = getRemovedIds(plId);
   if (rm.indexOf(vidId) === -1) rm.push(vidId);
-  lsSet('nt_rm_' + plId, rm);
-  scheduleSyncPush();
+  lsSet('nt_rm_' + plId, rm); scheduleSyncPush();
 }
 function getAddedIds(plId) { return lsGet('nt_add_' + plId) || []; }
 function addAddedId(plId, vidId) {
   var ad = getAddedIds(plId);
   if (ad.indexOf(vidId) !== -1) return false;
-  ad.push(vidId);
-  lsSet('nt_add_' + plId, ad);
-  scheduleSyncPush();
-  return true;
+  ad.push(vidId); lsSet('nt_add_' + plId, ad); scheduleSyncPush(); return true;
 }
 
 function formatTime(s) {
@@ -493,14 +461,12 @@ function formatTime(s) {
   return Math.floor(s/60) + ':' + String(Math.floor(s%60)).padStart(2,'0');
 }
 
-// Returns an RFC 3339 timestamp for N years ago
 function yearsAgoRFC(n) {
   var d = new Date();
   d.setFullYear(d.getFullYear() - n);
   return d.toISOString().replace(/\.\d{3}Z$/, 'Z');
 }
 
-// YT API
 window.onYouTubeIframeAPIReady = function() {};
 (function() { var s = document.createElement('script'); s.src = 'https://www.youtube.com/iframe_api'; document.head.appendChild(s); })();
 
@@ -534,25 +500,17 @@ async function fetchChannelSearch(channelId, query, oldYears) {
   var d = await r.json();
   if (!d.items) return [];
   return d.items.map(function(it) {
-    return {
-      snippet: {
-        resourceId: { videoId: it.id && it.id.videoId },
-        title: it.snippet && it.snippet.title,
-        thumbnails: it.snippet && it.snippet.thumbnails || {}
-      }
-    };
+    return { snippet: { resourceId: { videoId: it.id && it.id.videoId }, title: it.snippet && it.snippet.title, thumbnails: it.snippet && it.snippet.thumbnails || {} } };
   }).filter(function(it) { return it.snippet.resourceId.videoId; });
 }
 
-// PLAYLIST SCREEN
 async function renderPlaylists() {
   var grid = document.getElementById('playlist-grid');
   grid.innerHTML = '<div class="loading">Loading...</div>';
   var cards = await Promise.all(PLAYLISTS.map(async function(pl) {
     try {
       var info = await fetchPlaylistInfo(pl.id);
-      var added = getAddedIds(pl.id).length;
-      var removed = getRemovedIds(pl.id).length;
+      var added = getAddedIds(pl.id).length, removed = getRemovedIds(pl.id).length;
       var base = parseInt(info && info.contentDetails && info.contentDetails.itemCount || 0);
       var count = Math.max(0, base + added - removed) || '?';
       var wd = getWatchData(pl.id);
@@ -562,18 +520,13 @@ async function renderPlaylists() {
   }));
   grid.innerHTML = cards.map(function(c) {
     var pl = c.pl, hasAdd = !!CHANNEL_ADD[pl.id];
-    return '<div class="playlist-card" onclick="openPlaylist(\''+pl.id+'\',\''+pl.name.replace(/'/g,"\\'")+'\')">'+'<div class="card-thumb">'+(pl.thumb ? '<img src="'+pl.thumb+'" alt="" loading="lazy">' : '')+'<div class="card-count"><svg width="11" height="9" viewBox="0 0 11 9" fill="none"><rect y="0" width="11" height="1.5" fill="currentColor"/><rect y="3.5" width="8" height="1.5" fill="currentColor"/><rect y="7" width="9" height="1.5" fill="currentColor"/></svg>'+c.count+'</div>'+(c.hasProgress ? '<div class="resume-dot"></div>' : '')+(hasAdd ? '<button class="card-add-btn" onclick="event.stopPropagation();quickAdd(\''+pl.id+'\')" title="Add random video">+</button>' : '')+'</div><div class="card-body"><div class="card-title">'+pl.name+'</div>'+'<div class="card-sub">'+(c.hasProgress ? 'Resume &middot; #'+(c.currentIdx+1) : '')+'</div></div></div>';
+    return '<div class="playlist-card" onclick="openPlaylist(\''+pl.id+'\',\''+pl.name.replace(/'/g,"\\'")+'\')">'+'<div class="card-thumb">'+(pl.thumb?'<img src="'+pl.thumb+'" alt="" loading="lazy">':'')+'<div class="card-count"><svg width="11" height="9" viewBox="0 0 11 9" fill="none"><rect y="0" width="11" height="1.5" fill="currentColor"/><rect y="3.5" width="8" height="1.5" fill="currentColor"/><rect y="7" width="9" height="1.5" fill="currentColor"/></svg>'+c.count+'</div>'+(c.hasProgress?'<div class="resume-dot"></div>':'')+(hasAdd?'<button class="card-add-btn" onclick="event.stopPropagation();quickAdd(\''+pl.id+'\')" title="Add random video">+</button>':'')+'</div><div class="card-body"><div class="card-title">'+pl.name+'</div><div class="card-sub">'+(c.hasProgress?'Resume &middot; #'+(c.currentIdx+1):'')+'</div></div></div>';
   }).join('');
   if (syncCode) setSyncStatus('synced');
 }
 
-async function quickAdd(plId) {
-  showToast('Finding a video...');
-  await doAddRandomVideo(plId);
-  renderPlaylists();
-}
+async function quickAdd(plId) { showToast('Finding a video...'); await doAddRandomVideo(plId); renderPlaylists(); }
 
-// SHUFFLE
 async function shufflePlay() {
   showToast('Loading shuffle...');
   try {
@@ -597,16 +550,13 @@ async function shufflePlay() {
   } catch(e) { showToast('Shuffle failed: ' + e.message); }
 }
 
-// OPEN PLAYLIST
 async function openPlaylist(plId, name) {
   currentPlaylistId = plId;
   document.getElementById('playlist-screen').style.display = 'none';
   document.getElementById('player-screen').style.display = 'block';
   document.getElementById('player-title').textContent = name;
   document.getElementById('video-list').innerHTML = '<div style="padding:30px;text-align:center;font-size:12px;color:#5a4020;">Loading...</div>';
-  updateAddBtn();
-  adManual = false;
-  setAdOverlay(false);
+  updateAddBtn(); adManual = false; setAdOverlay(false);
   try { await reloadPlaylist(true); }
   catch(e) { document.getElementById('video-list').innerHTML = '<div style="padding:30px;text-align:center;font-size:12px;color:#884444;">Failed: '+e.message+'</div>'; }
 }
@@ -614,16 +564,14 @@ async function openPlaylist(plId, name) {
 async function reloadPlaylist(autoPlay) {
   var plId = currentPlaylistId;
   var items = await fetchPlaylistItems(plId);
-  var rm = getRemovedIds(plId);
-  var addedIds = getAddedIds(plId);
+  var rm = getRemovedIds(plId), addedIds = getAddedIds(plId);
   var filtered = items.filter(function(it) {
     var vid = it.snippet && it.snippet.resourceId && it.snippet.resourceId.videoId;
     return vid && rm.indexOf(vid) === -1 && it.snippet.title !== 'Private video' && it.snippet.title !== 'Deleted video';
   });
   addedIds.forEach(function(vid) {
-    if (!filtered.find(function(it) { return it.snippet && it.snippet.resourceId && it.snippet.resourceId.videoId === vid; })) {
+    if (!filtered.find(function(it) { return it.snippet && it.snippet.resourceId && it.snippet.resourceId.videoId === vid; }))
       filtered.push({ snippet: { resourceId: { videoId: vid }, title: '(Added video)', thumbnails: {} }, _added: true });
-    }
   });
   currentVideos = filtered;
   var wd = getWatchData(plId);
@@ -644,32 +592,24 @@ function updateAddBtn() {
   else btn.classList.add('hidden');
 }
 
-// ADD RANDOM VIDEO
 async function doAddRandomVideo(plId) {
-  var cfg = CHANNEL_ADD[plId];
-  if (!cfg) return;
+  var cfg = CHANNEL_ADD[plId]; if (!cfg) return;
   try {
-    var videos;
-    if (cfg.type === 'search') {
-      videos = await fetchChannelSearch(cfg.channelId, cfg.query, cfg.oldYears);
-    } else {
-      videos = await fetchChannelUploads(cfg.channelId);
-    }
+    var videos = cfg.type === 'search'
+      ? await fetchChannelSearch(cfg.channelId, cfg.query, cfg.oldYears)
+      : await fetchChannelUploads(cfg.channelId);
     if (!videos.length) { showToast('No videos found'); return; }
-    var rm = getRemovedIds(plId);
-    var existing = [];
+    var rm = getRemovedIds(plId), existing = [];
     try {
       var existingItems = await fetchPlaylistItems(plId);
-      existingItems.forEach(function(it) {
-        var v = it.snippet && it.snippet.resourceId && it.snippet.resourceId.videoId;
-        if (v) existing.push(v);
-      });
+      existingItems.forEach(function(it) { var v = it.snippet && it.snippet.resourceId && it.snippet.resourceId.videoId; if (v) existing.push(v); });
     } catch(e) {}
     existing = existing.concat(getAddedIds(plId));
     var candidates = videos.filter(function(v) {
       var vid = v.snippet && v.snippet.resourceId && v.snippet.resourceId.videoId;
       var title = v.snippet && v.snippet.title || '';
       if (!vid || existing.indexOf(vid) !== -1 || rm.indexOf(vid) !== -1) return false;
+      // Apply optional title filter (e.g. must contain 3v3/4v4/etc)
       if (cfg.titleFilter && !cfg.titleFilter.test(title)) return false;
       return true;
     });
@@ -689,7 +629,6 @@ async function addRandomVideo() {
   await reloadPlaylist(false);
 }
 
-// REMOVE VIDEO
 function removeVideo(idx) {
   var v = currentVideos[idx];
   var vidId = v && v.snippet && v.snippet.resourceId && v.snippet.resourceId.videoId;
@@ -702,11 +641,9 @@ function removeVideo(idx) {
   if (wasActive && currentVideos.length > 0) { currentIndex = Math.min(idx, currentVideos.length-1); playVideo(currentIndex, 0); }
   else if (currentIndex > idx) currentIndex--;
   document.getElementById('vl-count').textContent = currentVideos.length;
-  renderVideoList();
-  showToast('Video removed');
+  renderVideoList(); showToast('Video removed');
 }
 
-// RENDER VIDEO LIST
 function renderVideoList() {
   var plId = currentPlaylistId;
   document.getElementById('video-list').innerHTML = currentVideos.map(function(v,i) {
@@ -717,12 +654,9 @@ function renderVideoList() {
     var dur = vidId ? videoDurations[vidId] : null;
     var pct = (vp && dur) ? Math.min(100,(vp.time/dur)*100) : 0;
     var timeStr = vp ? formatTime(vp.time) : '';
-    return '<div class="video-item '+(i===currentIndex?'active':'')+' " id="vi-'+i+'" onclick="playVideo('+i+',0)">'+'<div class="vi-num">'+(i+1)+'</div>'+'<div class="vi-thumb">'+(thumb?'<img src="'+thumb+'" loading="lazy">':'')+(pct>1?'<div class="vi-progress" style="width:'+pct+'%"></div>':'')+'</div>'+'<div class="vi-info"><div class="vi-title">'+(s&&s.title||'')+'</div>'+(timeStr?'<div class="vi-watched">watched to '+timeStr+'</div>':'')+'</div>'+'<button class="vi-remove" onclick="event.stopPropagation();removeVideo('+i+')" title="Remove">✕</button>'+'</div>';
+    return '<div class="video-item '+(i===currentIndex?'active':'')+' " id="vi-'+i+'" onclick="playVideo('+i+',0)"><div class="vi-num">'+(i+1)+'</div><div class="vi-thumb">'+(thumb?'<img src="'+thumb+'" loading="lazy">':'')+(pct>1?'<div class="vi-progress" style="width:'+pct+'%"></div>':'')+'</div><div class="vi-info"><div class="vi-title">'+(s&&s.title||'')+'</div>'+(timeStr?'<div class="vi-watched">watched to '+timeStr+'</div>':'')+'</div><button class="vi-remove" onclick="event.stopPropagation();removeVideo('+i+')" title="Remove">✕</button></div>';
   }).join('');
-  setTimeout(function() {
-    var el = document.getElementById('vi-'+currentIndex);
-    if (el) el.scrollIntoView({ block: 'nearest' });
-  }, 100);
+  setTimeout(function() { var el = document.getElementById('vi-'+currentIndex); if (el) el.scrollIntoView({ block: 'nearest' }); }, 100);
 }
 
 function updateActive(idx) {
@@ -731,16 +665,11 @@ function updateActive(idx) {
   if (el) el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
 }
 
-// PLAY VIDEO
 function playVideo(idx, startTime) {
-  currentIndex = idx;
-  updateActive(idx);
+  currentIndex = idx; updateActive(idx);
   var videoId = currentVideos[idx] && currentVideos[idx].snippet && currentVideos[idx].snippet.resourceId && currentVideos[idx].snippet.resourceId.videoId;
   if (!videoId) return;
-  if (!startTime) {
-    var vp = getVideoProgress(currentPlaylistId, videoId);
-    if (vp) startTime = vp.time;
-  }
+  if (!startTime) { var vp = getVideoProgress(currentPlaylistId, videoId); if (vp) startTime = vp.time; }
   if (ytPlayer && ytPlayer.loadVideoById) {
     ytPlayer.loadVideoById({ videoId: videoId, startSeconds: startTime||0 });
   } else if (window.YT && window.YT.Player) {
@@ -749,14 +678,8 @@ function playVideo(idx, startTime) {
       videoId: videoId,
       playerVars: { autoplay:1, start:Math.floor(startTime||0), rel:0, modestbranding:1, playsinline:1 },
       events: {
-        onStateChange: function(e) {
-          if (e.data === 0 && currentIndex < currentVideos.length-1) playVideo(currentIndex+1, 0);
-        },
-        onReady: function(e) {
-          e.target.playVideo();
-          var dur = e.target.getDuration();
-          if (dur) videoDurations[videoId] = dur;
-        }
+        onStateChange: function(e) { if (e.data === 0 && currentIndex < currentVideos.length-1) playVideo(currentIndex+1, 0); },
+        onReady: function(e) { e.target.playVideo(); var dur = e.target.getDuration(); if (dur) videoDurations[videoId] = dur; }
       }
     });
   } else { setTimeout(function() { playVideo(idx, startTime); }, 500); }
@@ -789,15 +712,13 @@ function startSaveTimer() {
 
 function goBack() {
   if (saveTimer) clearInterval(saveTimer);
-  adManual = false;
-  setAdOverlay(false);
+  adManual = false; setAdOverlay(false);
   try { if (ytPlayer) ytPlayer.pauseVideo(); } catch(e) {}
   document.getElementById('player-screen').style.display = 'none';
   document.getElementById('playlist-screen').style.display = 'block';
   renderPlaylists();
 }
 
-// INIT
 renderPlaylists();
 if (syncCode) { setSyncStatus('syncing'); syncPull(); }
 document.getElementById('sync-modal').addEventListener('click', function(e) { if (e.target === this) closeSyncModal(); });

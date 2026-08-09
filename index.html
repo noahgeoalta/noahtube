@@ -125,7 +125,8 @@
   .vl-header { display: flex; align-items: center; padding: 10px 0 8px; border-bottom: 1px solid rgba(120,80,30,0.2); margin-bottom: 2px; }
   .vl-label { font-size: 11px; color: #5a4020; letter-spacing: 0.08em; flex: 1; }
   .vl-count { font-size: 11px; color: #5a4020; }
-  .video-list { overflow-y: auto; max-height: calc(100vh - 56.25vw - 160px); min-height: 180px; }
+  /* video-list: no height cap — full list flows into the page and the page scrolls */
+  .video-list {}
   .video-item {
     display: flex; align-items: flex-start; gap: 10px; padding: 8px 0; cursor: pointer;
     border-bottom: 1px solid rgba(255,255,255,0.03); transition: opacity 0.15s; position: relative;
@@ -515,7 +516,6 @@ async function fetchChannelUploads(channelId) {
   return d2.items || [];
 }
 async function fetchChannelSearch(channelId, query, oldOnly) {
-  // Build URL — if oldOnly, cap results to videos published before 5 years ago
   var url = 'https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&channelId='+channelId+'&q='+encodeURIComponent(query)+'&maxResults=50&order=date&key='+API_KEY;
   if (oldOnly) url += '&publishedBefore=' + encodeURIComponent(yearsAgoRFC(5));
   var r = await fetch(url);
@@ -704,13 +704,17 @@ function renderVideoList() {
     var timeStr = vp ? formatTime(vp.time) : '';
     return '<div class="video-item '+(i===currentIndex?'active':'')+' " id="vi-'+i+'" onclick="playVideo('+i+',0)">'+'<div class="vi-num">'+(i+1)+'</div>'+'<div class="vi-thumb">'+(thumb?'<img src="'+thumb+'" loading="lazy">':'')+(pct>1?'<div class="vi-progress" style="width:'+pct+'%"></div>':'')+'</div>'+'<div class="vi-info"><div class="vi-title">'+(s&&s.title||'')+'</div>'+(timeStr?'<div class="vi-watched">watched to '+timeStr+'</div>':'')+'</div>'+'<button class="vi-remove" onclick="event.stopPropagation();removeVideo('+i+')" title="Remove">✕</button>'+'</div>';
   }).join('');
-  setTimeout(function() { var el = document.getElementById('vi-'+currentIndex); if(el) el.scrollIntoView({block:'nearest'}); }, 100);
+  // Scroll active item into view without fighting the page scroll
+  setTimeout(function() {
+    var el = document.getElementById('vi-'+currentIndex);
+    if (el) el.scrollIntoView({ block: 'nearest' });
+  }, 100);
 }
 
 function updateActive(idx) {
   document.querySelectorAll('.video-item').forEach(function(el,i) { el.classList.toggle('active', i===idx); });
   var el = document.getElementById('vi-'+idx);
-  if (el) el.scrollIntoView({block:'nearest',behavior:'smooth'});
+  if (el) el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
 }
 
 // PLAY VIDEO

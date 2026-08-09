@@ -249,20 +249,19 @@ var API_KEY = 'AIzaSyBZN1fX8QCV1zRQNkANXK2rhOgdnS9mIuk';
 var BASE = 'https://raw.githubusercontent.com/noahgeoalta/noahtube/main/Playlist%20images/';
 var BLOB_BASE = 'https://jsonblob.com/api/jsonBlob';
 
-// CHANNEL_ADD: maps playlist ID -> { type, label, ... }
-// type 'channel' = pull from channel uploads
-// type 'search'  = use YouTube search API with a query, filtered by channelId
+// CHANNEL_ADD: maps playlist ID -> config
+// type 'search'  = YouTube search API filtered by channelId
+// type 'channel' = pull latest 50 from channel uploads playlist
+// oldOnly: true  = restrict results to videos published before 5 years ago
 var CHANNEL_ADD = {
-  // WarCraft III -> WTiiWarcraft uploads
-  'PLQLYASJYnD3SbbkJXfLHlEiCDtVClnQO3': { type: 'channel', channelId: 'UCSLkuZD3BR_4vujh_NKwm1w', label: 'WTiiWarcraft' },
-  // World of Warcraft -> Asmongold WoW videos (search filtered)
-  'PLQLYASJYnD3Rn7nN-A8fO-x6RrYwUcGnF': { type: 'search', channelId: 'UCQeRaTukNYft1_6AZPACnog', query: 'World of Warcraft', label: 'Asmongold' },
+  // WarCraft III -> WTiiWarcraft, old videos only (5+ years)
+  'PLQLYASJYnD3SbbkJXfLHlEiCDtVClnQO3': { type: 'search', channelId: 'UCSLkuZD3BR_4vujh_NKwm1w', query: 'Warcraft', oldOnly: true, label: 'WTiiWarcraft' },
+  // World of Warcraft -> Asmongold, old WoW videos only (5+ years)
+  'PLQLYASJYnD3Rn7nN-A8fO-x6RrYwUcGnF': { type: 'search', channelId: 'UCQeRaTukNYft1_6AZPACnog', query: 'World of Warcraft', oldOnly: true, label: 'Asmongold' },
   // StarCraft -> ArtosisCasts uploads
   'PLQLYASJYnD3T-MrNTRFisyoLN3Bgk-sXe': { type: 'channel', channelId: 'UCf0ynO5nqkPq_7Xn-973d2w', label: 'ArtosisCasts' },
   // DOTA -> TheBaltazarTV uploads
-  'PLQLYASJYnD3SKhk3dk91biYoLtI857xhG': { type: 'channel', channelId: 'UCo8fElL5iJdyf8gBP1ntjKA', label: 'TheBaltazarTV' },
-  // Elder Scrolls Books -> Tamrielle audiobook uploads
-  'PLQLYASJYnD3RdUMxUqIS2XdRpvEU5Nppy': { type: 'channel', channelId: 'UC3PZUQZQPK4kkIOe6Plrruw', label: 'Tamrielle' }
+  'PLQLYASJYnD3SKhk3dk91biYoLtI857xhG': { type: 'channel', channelId: 'UCo8fElL5iJdyf8gBP1ntjKA', label: 'TheBaltazarTV' }
 };
 
 var SHUFFLE_IDS = [
@@ -481,6 +480,13 @@ function formatTime(s) {
   return Math.floor(s/60) + ':' + String(Math.floor(s%60)).padStart(2,'0');
 }
 
+// Returns an RFC 3339 timestamp for N years ago
+function yearsAgoRFC(n) {
+  var d = new Date();
+  d.setFullYear(d.getFullYear() - n);
+  return d.toISOString().replace(/\.\d{3}Z$/, 'Z');
+}
+
 // YT API
 window.onYouTubeIframeAPIReady = function() {};
 (function() { var s = document.createElement('script'); s.src = 'https://www.youtube.com/iframe_api'; document.head.appendChild(s); })();
@@ -508,12 +514,13 @@ async function fetchChannelUploads(channelId) {
   var d2 = await r2.json();
   return d2.items || [];
 }
-async function fetchChannelSearch(channelId, query) {
-  // Search within a specific channel, sorted by date (oldest first via 'date' order = most recent 50, we then pick from the older half)
-  var r = await fetch('https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&channelId='+channelId+'&q='+encodeURIComponent(query)+'&maxResults=50&order=date&key='+API_KEY);
+async function fetchChannelSearch(channelId, query, oldOnly) {
+  // Build URL — if oldOnly, cap results to videos published before 5 years ago
+  var url = 'https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&channelId='+channelId+'&q='+encodeURIComponent(query)+'&maxResults=50&order=date&key='+API_KEY;
+  if (oldOnly) url += '&publishedBefore=' + encodeURIComponent(yearsAgoRFC(5));
+  var r = await fetch(url);
   var d = await r.json();
   if (!d.items) return [];
-  // Map to same shape as playlistItems for compatibility
   return d.items.map(function(it) {
     return {
       snippet: {
@@ -632,7 +639,7 @@ async function doAddRandomVideo(plId) {
   try {
     var videos;
     if (cfg.type === 'search') {
-      videos = await fetchChannelSearch(cfg.channelId, cfg.query);
+      videos = await fetchChannelSearch(cfg.channelId, cfg.query, cfg.oldOnly);
     } else {
       videos = await fetchChannelUploads(cfg.channelId);
     }
@@ -651,15 +658,8 @@ async function doAddRandomVideo(plId) {
       var vid = v.snippet && v.snippet.resourceId && v.snippet.resourceId.videoId;
       return vid && existing.indexOf(vid) === -1 && rm.indexOf(vid) === -1;
     });
-    if (!candidates.length) { showToast('All recent videos already added'); return; }
-    // For search results, prefer the older half (further down the date-sorted list = older)
-    var pool;
-    if (cfg.type === 'search') {
-      pool = candidates.length > 4 ? candidates.slice(Math.floor(candidates.length / 2)) : candidates;
-    } else {
-      pool = candidates.length > 4 ? candidates.slice(Math.floor(candidates.length / 2)) : candidates;
-    }
-    var pick = pool[Math.floor(Math.random() * pool.length)];
+    if (!candidates.length) { showToast('All videos already added'); return; }
+    var pick = candidates[Math.floor(Math.random() * candidates.length)];
     var vid = pick.snippet && pick.snippet.resourceId && pick.snippet.resourceId.videoId;
     var title = pick.snippet && pick.snippet.title || vid;
     var ok = addAddedId(plId, vid);

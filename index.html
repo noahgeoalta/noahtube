@@ -95,7 +95,7 @@
   .player-wrap { width: 100%; aspect-ratio: 16/9; background: #000; border-radius: 3px; overflow: hidden; position: relative; }
   #yt-player { position: absolute; inset: 0; width: 100%; height: 100%; }
 
-  /* Ad overlay — bottom-right stays transparent so skip button is always reachable */
+  /* Ad overlay */
   #ad-overlay {
     display: none; position: absolute; inset: 0; z-index: 10;
     align-items: center; justify-content: center; flex-direction: column; gap: 10px;
@@ -109,13 +109,9 @@
   .ad-rune { font-size: 28px; opacity: 0.15; animation: pulse 2s ease-in-out infinite; pointer-events: none; }
   @keyframes pulse { 0%,100%{opacity:0.1} 50%{opacity:0.22} }
 
-  /* Ad toggle bar — sits between player and video list */
+  /* Ad toggle bar */
   .ad-bar {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 6px 0 0;
-    gap: 8px;
+    display: flex; align-items: center; justify-content: space-between; padding: 6px 0 0; gap: 8px;
   }
   .ad-toggle-btn {
     background: rgba(14,9,4,0.85); border: 1px solid rgba(80,60,30,0.4); color: #5a4020;
@@ -123,9 +119,7 @@
     padding: 5px 12px; border-radius: 3px; transition: all 0.18s;
   }
   .ad-toggle-btn:hover { border-color: rgba(120,90,40,0.6); color: #907050; }
-  .ad-toggle-btn.active {
-    background: rgba(30,8,8,0.9); border-color: rgba(160,60,30,0.6); color: #c05030;
-  }
+  .ad-toggle-btn.active { background: rgba(30,8,8,0.9); border-color: rgba(160,60,30,0.6); color: #c05030; }
   .ad-toggle-btn.active:hover { border-color: rgba(200,80,40,0.8); color: #e06040; }
 
   .vl-header { display: flex; align-items: center; padding: 10px 0 8px; border-bottom: 1px solid rgba(120,80,30,0.2); margin-bottom: 2px; }
@@ -220,7 +214,6 @@
         <div class="ad-rune">&#9876;</div>
       </div>
     </div>
-    <!-- Ad toggle bar between player and playlist -->
     <div class="ad-bar">
       <button class="ad-toggle-btn" id="ad-toggle-btn" onclick="toggleAdManual()">AD</button>
     </div>
@@ -256,9 +249,20 @@ var API_KEY = 'AIzaSyBZN1fX8QCV1zRQNkANXK2rhOgdnS9mIuk';
 var BASE = 'https://raw.githubusercontent.com/noahgeoalta/noahtube/main/Playlist%20images/';
 var BLOB_BASE = 'https://jsonblob.com/api/jsonBlob';
 
+// CHANNEL_ADD: maps playlist ID -> { type, label, ... }
+// type 'channel' = pull from channel uploads
+// type 'search'  = use YouTube search API with a query, filtered by channelId
 var CHANNEL_ADD = {
-  'PLQLYASJYnD3Rn7nN-A8fO-x6RrYwUcGnF': { channelId: 'UCSLkuZD3BR_4vujh_NKwm1w', label: 'WTiiWarcraft' },
-  'PLQLYASJYnD3SKhk3dk91biYoLtI857xhG': { channelId: 'UCo8fElL5iJdyf8gBP1ntjKA', label: 'TheBaltazarTV' }
+  // WarCraft III -> WTiiWarcraft uploads
+  'PLQLYASJYnD3SbbkJXfLHlEiCDtVClnQO3': { type: 'channel', channelId: 'UCSLkuZD3BR_4vujh_NKwm1w', label: 'WTiiWarcraft' },
+  // World of Warcraft -> Asmongold WoW videos (search filtered)
+  'PLQLYASJYnD3Rn7nN-A8fO-x6RrYwUcGnF': { type: 'search', channelId: 'UCQeRaTukNYft1_6AZPACnog', query: 'World of Warcraft', label: 'Asmongold' },
+  // StarCraft -> ArtosisCasts uploads
+  'PLQLYASJYnD3T-MrNTRFisyoLN3Bgk-sXe': { type: 'channel', channelId: 'UCf0ynO5nqkPq_7Xn-973d2w', label: 'ArtosisCasts' },
+  // DOTA -> TheBaltazarTV uploads
+  'PLQLYASJYnD3SKhk3dk91biYoLtI857xhG': { type: 'channel', channelId: 'UCo8fElL5iJdyf8gBP1ntjKA', label: 'TheBaltazarTV' },
+  // Elder Scrolls Books -> Tamrielle audiobook uploads
+  'PLQLYASJYnD3RdUMxUqIS2XdRpvEU5Nppy': { type: 'channel', channelId: 'UC3PZUQZQPK4kkIOe6Plrruw', label: 'Tamrielle' }
 };
 
 var SHUFFLE_IDS = [
@@ -304,7 +308,6 @@ function setAdOverlay(on) {
   }
 }
 
-// Manual toggle only — no auto detection
 function toggleAdManual() {
   adManual = !adManual;
   setAdOverlay(adManual);
@@ -505,6 +508,22 @@ async function fetchChannelUploads(channelId) {
   var d2 = await r2.json();
   return d2.items || [];
 }
+async function fetchChannelSearch(channelId, query) {
+  // Search within a specific channel, sorted by date (oldest first via 'date' order = most recent 50, we then pick from the older half)
+  var r = await fetch('https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&channelId='+channelId+'&q='+encodeURIComponent(query)+'&maxResults=50&order=date&key='+API_KEY);
+  var d = await r.json();
+  if (!d.items) return [];
+  // Map to same shape as playlistItems for compatibility
+  return d.items.map(function(it) {
+    return {
+      snippet: {
+        resourceId: { videoId: it.id && it.id.videoId },
+        title: it.snippet && it.snippet.title,
+        thumbnails: it.snippet && it.snippet.thumbnails || {}
+      }
+    };
+  }).filter(function(it) { return it.snippet.resourceId.videoId; });
+}
 
 // PLAYLIST SCREEN
 async function renderPlaylists() {
@@ -567,7 +586,6 @@ async function openPlaylist(plId, name) {
   document.getElementById('player-title').textContent = name;
   document.getElementById('video-list').innerHTML = '<div style="padding:30px;text-align:center;font-size:12px;color:#5a4020;">Loading...</div>';
   updateAddBtn();
-  // Reset ad state when opening a new playlist
   adManual = false;
   setAdOverlay(false);
   try { await reloadPlaylist(true); }
@@ -612,7 +630,12 @@ async function doAddRandomVideo(plId) {
   var cfg = CHANNEL_ADD[plId];
   if (!cfg) return;
   try {
-    var videos = await fetchChannelUploads(cfg.channelId);
+    var videos;
+    if (cfg.type === 'search') {
+      videos = await fetchChannelSearch(cfg.channelId, cfg.query);
+    } else {
+      videos = await fetchChannelUploads(cfg.channelId);
+    }
     if (!videos.length) { showToast('No videos found'); return; }
     var rm = getRemovedIds(plId);
     var existing = [];
@@ -629,7 +652,13 @@ async function doAddRandomVideo(plId) {
       return vid && existing.indexOf(vid) === -1 && rm.indexOf(vid) === -1;
     });
     if (!candidates.length) { showToast('All recent videos already added'); return; }
-    var pool = candidates.length > 4 ? candidates.slice(Math.floor(candidates.length/2)) : candidates;
+    // For search results, prefer the older half (further down the date-sorted list = older)
+    var pool;
+    if (cfg.type === 'search') {
+      pool = candidates.length > 4 ? candidates.slice(Math.floor(candidates.length / 2)) : candidates;
+    } else {
+      pool = candidates.length > 4 ? candidates.slice(Math.floor(candidates.length / 2)) : candidates;
+    }
     var pick = pool[Math.floor(Math.random() * pool.length)];
     var vid = pick.snippet && pick.snippet.resourceId && pick.snippet.resourceId.videoId;
     var title = pick.snippet && pick.snippet.title || vid;
@@ -694,7 +723,6 @@ function playVideo(idx, startTime) {
     var vp = getVideoProgress(currentPlaylistId, videoId);
     if (vp) startTime = vp.time;
   }
-  // Do not touch manual overlay state when switching videos
   if (ytPlayer && ytPlayer.loadVideoById) {
     ytPlayer.loadVideoById({ videoId: videoId, startSeconds: startTime||0 });
   } else if (window.YT && window.YT.Player) {

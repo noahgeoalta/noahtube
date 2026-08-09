@@ -100,9 +100,8 @@
     display: none; position: absolute; inset: 0; z-index: 10;
     align-items: center; justify-content: center; flex-direction: column; gap: 10px;
     background: #000;
-    -webkit-mask-image: radial-gradient(ellipse 55% 40% at 100% 100%, transparent 60%, black 80%);
-    mask-image: radial-gradient(ellipse 55% 40% at 100% 100%, transparent 60%, black 80%);
-    /* Bottom-right corner is always a click-through hole */
+    -webkit-mask-image: radial-gradient(ellipse 48% 36% at 100% 105%, transparent 58%, black 76%);
+    mask-image: radial-gradient(ellipse 48% 36% at 100% 105%, transparent 58%, black 76%);
     pointer-events: none;
   }
   #ad-overlay.active { display: flex; }
@@ -128,7 +127,6 @@
     background: rgba(30,8,8,0.9); border-color: rgba(160,60,30,0.6); color: #c05030;
   }
   .ad-toggle-btn.active:hover { border-color: rgba(200,80,40,0.8); color: #e06040; }
-  .ad-auto-status { font-size: 10px; color: #3a2810; letter-spacing: 0.05em; }
 
   .vl-header { display: flex; align-items: center; padding: 10px 0 8px; border-bottom: 1px solid rgba(120,80,30,0.2); margin-bottom: 2px; }
   .vl-label { font-size: 11px; color: #5a4020; letter-spacing: 0.08em; flex: 1; }
@@ -225,7 +223,6 @@
     <!-- Ad toggle bar between player and playlist -->
     <div class="ad-bar">
       <button class="ad-toggle-btn" id="ad-toggle-btn" onclick="toggleAdManual()">AD</button>
-      <span class="ad-auto-status" id="ad-auto-status"></span>
     </div>
     <div class="vl-header">
       <div class="vl-label">UP NEXT</div>
@@ -288,9 +285,8 @@ var saveTimer = null, videoDurations = {}, preMuteVol = 100;
 var syncCode = localStorage.getItem('nt_sync_code') || null;
 var syncTimer = null;
 
-// Ad state — manual overrides auto
-var adManual = false;   // user pressed the AD button
-var adAuto = false;     // auto-detection thinks there's an ad
+// Ad state — manual only
+var adManual = false;
 var adOverlayOn = false;
 
 function setAdOverlay(on) {
@@ -308,19 +304,10 @@ function setAdOverlay(on) {
   }
 }
 
-// Manual toggle — clicking AD button always wins
+// Manual toggle only — no auto detection
 function toggleAdManual() {
   adManual = !adManual;
-  // If user turns it off manually, also clear auto so it doesn't immediately re-trigger
-  if (!adManual) adAuto = false;
-  setAdOverlay(adManual || adAuto);
-  updateAutoStatus();
-}
-
-function updateAutoStatus() {
-  var el = document.getElementById('ad-auto-status');
-  if (adAuto && !adManual) el.textContent = 'auto-detected';
-  else el.textContent = '';
+  setAdOverlay(adManual);
 }
 
 // TOAST
@@ -537,14 +524,7 @@ async function renderPlaylists() {
   }));
   grid.innerHTML = cards.map(function(c) {
     var pl = c.pl, hasAdd = !!CHANNEL_ADD[pl.id];
-    return '<div class="playlist-card" onclick="openPlaylist(\''+pl.id+'\',\''+pl.name.replace(/'/g,"\\'")+'\')">'+
-      '<div class="card-thumb">'+
-      (pl.thumb ? '<img src="'+pl.thumb+'" alt="" loading="lazy">' : '')+
-      '<div class="card-count"><svg width="11" height="9" viewBox="0 0 11 9" fill="none"><rect y="0" width="11" height="1.5" fill="currentColor"/><rect y="3.5" width="8" height="1.5" fill="currentColor"/><rect y="7" width="9" height="1.5" fill="currentColor"/></svg>'+c.count+'</div>'+
-      (c.hasProgress ? '<div class="resume-dot"></div>' : '')+
-      (hasAdd ? '<button class="card-add-btn" onclick="event.stopPropagation();quickAdd(\''+pl.id+'\')" title="Add random video">+</button>' : '')+
-      '</div><div class="card-body"><div class="card-title">'+pl.name+'</div>'+
-      '<div class="card-sub">'+(c.hasProgress ? 'Resume &middot; #'+(c.currentIdx+1) : '')+'</div></div></div>';
+    return '<div class="playlist-card" onclick="openPlaylist(\''+pl.id+'\',\''+pl.name.replace(/'/g,"\\'")+'\')">'+'<div class="card-thumb">'+(pl.thumb ? '<img src="'+pl.thumb+'" alt="" loading="lazy">' : '')+'<div class="card-count"><svg width="11" height="9" viewBox="0 0 11 9" fill="none"><rect y="0" width="11" height="1.5" fill="currentColor"/><rect y="3.5" width="8" height="1.5" fill="currentColor"/><rect y="7" width="9" height="1.5" fill="currentColor"/></svg>'+c.count+'</div>'+(c.hasProgress ? '<div class="resume-dot"></div>' : '')+(hasAdd ? '<button class="card-add-btn" onclick="event.stopPropagation();quickAdd(\''+pl.id+'\')" title="Add random video">+</button>' : '')+'</div><div class="card-body"><div class="card-title">'+pl.name+'</div>'+'<div class="card-sub">'+(c.hasProgress ? 'Resume &middot; #'+(c.currentIdx+1) : '')+'</div></div></div>';
   }).join('');
   if (syncCode) setSyncStatus('synced');
 }
@@ -588,9 +568,8 @@ async function openPlaylist(plId, name) {
   document.getElementById('video-list').innerHTML = '<div style="padding:30px;text-align:center;font-size:12px;color:#5a4020;">Loading...</div>';
   updateAddBtn();
   // Reset ad state when opening a new playlist
-  adManual = false; adAuto = false;
+  adManual = false;
   setAdOverlay(false);
-  updateAutoStatus();
   try { await reloadPlaylist(true); }
   catch(e) { document.getElementById('video-list').innerHTML = '<div style="padding:30px;text-align:center;font-size:12px;color:#884444;">Failed: '+e.message+'</div>'; }
 }
@@ -694,12 +673,7 @@ function renderVideoList() {
     var dur = vidId ? videoDurations[vidId] : null;
     var pct = (vp && dur) ? Math.min(100,(vp.time/dur)*100) : 0;
     var timeStr = vp ? formatTime(vp.time) : '';
-    return '<div class="video-item '+(i===currentIndex?'active':'')+'" id="vi-'+i+'" onclick="playVideo('+i+',0)">'+
-      '<div class="vi-num">'+(i+1)+'</div>'+
-      '<div class="vi-thumb">'+(thumb?'<img src="'+thumb+'" loading="lazy">':'')+(pct>1?'<div class="vi-progress" style="width:'+pct+'%"></div>':'')+'</div>'+
-      '<div class="vi-info"><div class="vi-title">'+(s&&s.title||'')+'</div>'+(timeStr?'<div class="vi-watched">watched to '+timeStr+'</div>':'')+'</div>'+
-      '<button class="vi-remove" onclick="event.stopPropagation();removeVideo('+i+')" title="Remove">\u2715</button>'+
-      '</div>';
+    return '<div class="video-item '+(i===currentIndex?'active':'')+' " id="vi-'+i+'" onclick="playVideo('+i+',0)">'+'<div class="vi-num">'+(i+1)+'</div>'+'<div class="vi-thumb">'+(thumb?'<img src="'+thumb+'" loading="lazy">':'')+(pct>1?'<div class="vi-progress" style="width:'+pct+'%"></div>':'')+'</div>'+'<div class="vi-info"><div class="vi-title">'+(s&&s.title||'')+'</div>'+(timeStr?'<div class="vi-watched">watched to '+timeStr+'</div>':'')+'</div>'+'<button class="vi-remove" onclick="event.stopPropagation();removeVideo('+i+')" title="Remove">✕</button>'+'</div>';
   }).join('');
   setTimeout(function() { var el = document.getElementById('vi-'+currentIndex); if(el) el.scrollIntoView({block:'nearest'}); }, 100);
 }
@@ -708,26 +682,6 @@ function updateActive(idx) {
   document.querySelectorAll('.video-item').forEach(function(el,i) { el.classList.toggle('active', i===idx); });
   var el = document.getElementById('vi-'+idx);
   if (el) el.scrollIntoView({block:'nearest',behavior:'smooth'});
-}
-
-// AD AUTO-DETECTION (backup only — manual toggle takes priority)
-var adCheckTimer = null;
-function startAdCheck(expectedId) {
-  if (adCheckTimer) clearInterval(adCheckTimer);
-  adCheckTimer = setInterval(function() {
-    if (!ytPlayer || !ytPlayer.getVideoData) return;
-    // If user manually triggered the overlay, don't interfere
-    if (adManual) return;
-    try {
-      var data = ytPlayer.getVideoData();
-      var detected = !!(data && data.video_id && data.video_id !== expectedId);
-      if (detected !== adAuto) {
-        adAuto = detected;
-        setAdOverlay(adAuto);
-        updateAutoStatus();
-      }
-    } catch(e) {}
-  }, 800);
 }
 
 // PLAY VIDEO
@@ -740,10 +694,7 @@ function playVideo(idx, startTime) {
     var vp = getVideoProgress(currentPlaylistId, videoId);
     if (vp) startTime = vp.time;
   }
-  // Clear auto ad state on new video, but respect manual
-  adAuto = false;
-  if (!adManual) setAdOverlay(false);
-  updateAutoStatus();
+  // Do not touch manual overlay state when switching videos
   if (ytPlayer && ytPlayer.loadVideoById) {
     ytPlayer.loadVideoById({ videoId: videoId, startSeconds: startTime||0 });
   } else if (window.YT && window.YT.Player) {
@@ -754,7 +705,6 @@ function playVideo(idx, startTime) {
       events: {
         onStateChange: function(e) {
           if (e.data === 0 && currentIndex < currentVideos.length-1) playVideo(currentIndex+1, 0);
-          if (e.data === 1) startAdCheck(videoId);
         },
         onReady: function(e) {
           e.target.playVideo();
@@ -793,8 +743,7 @@ function startSaveTimer() {
 
 function goBack() {
   if (saveTimer) clearInterval(saveTimer);
-  if (adCheckTimer) clearInterval(adCheckTimer);
-  adManual = false; adAuto = false;
+  adManual = false;
   setAdOverlay(false);
   try { if (ytPlayer) ytPlayer.pauseVideo(); } catch(e) {}
   document.getElementById('player-screen').style.display = 'none';

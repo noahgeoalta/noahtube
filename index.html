@@ -253,12 +253,12 @@ var BLOB_BASE = 'https://jsonblob.com/api/jsonBlob';
 // CHANNEL_ADD: maps playlist ID -> config
 // type 'search'  = YouTube search API filtered by channelId
 // type 'channel' = pull latest 50 from channel uploads playlist
-// oldOnly: true  = restrict results to videos published before 5 years ago
+// oldYears: N    = restrict results to videos published before N years ago (omit for no cutoff)
 var CHANNEL_ADD = {
-  // WarCraft III -> WTiiWarcraft, old videos only (5+ years)
-  'PLQLYASJYnD3SbbkJXfLHlEiCDtVClnQO3': { type: 'search', channelId: 'UCSLkuZD3BR_4vujh_NKwm1w', query: 'Warcraft', oldOnly: true, label: 'WTiiWarcraft' },
-  // World of Warcraft -> Asmongold, old WoW videos only (5+ years)
-  'PLQLYASJYnD3Rn7nN-A8fO-x6RrYwUcGnF': { type: 'search', channelId: 'UCQeRaTukNYft1_6AZPACnog', query: 'World of Warcraft', oldOnly: true, label: 'Asmongold' },
+  // WarCraft III -> WTiiWarcraft, videos 7+ years old only
+  'PLQLYASJYnD3SbbkJXfLHlEiCDtVClnQO3': { type: 'search', channelId: 'UCSLkuZD3BR_4vujh_NKwm1w', query: 'Warcraft', oldYears: 7, label: 'WTiiWarcraft' },
+  // World of Warcraft -> Asmongold, WoW videos 5+ years old only
+  'PLQLYASJYnD3Rn7nN-A8fO-x6RrYwUcGnF': { type: 'search', channelId: 'UCQeRaTukNYft1_6AZPACnog', query: 'World of Warcraft', oldYears: 5, label: 'Asmongold' },
   // StarCraft -> ArtosisCasts uploads
   'PLQLYASJYnD3T-MrNTRFisyoLN3Bgk-sXe': { type: 'channel', channelId: 'UCf0ynO5nqkPq_7Xn-973d2w', label: 'ArtosisCasts' },
   // DOTA -> TheBaltazarTV uploads
@@ -515,9 +515,9 @@ async function fetchChannelUploads(channelId) {
   var d2 = await r2.json();
   return d2.items || [];
 }
-async function fetchChannelSearch(channelId, query, oldOnly) {
+async function fetchChannelSearch(channelId, query, oldYears) {
   var url = 'https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&channelId='+channelId+'&q='+encodeURIComponent(query)+'&maxResults=50&order=date&key='+API_KEY;
-  if (oldOnly) url += '&publishedBefore=' + encodeURIComponent(yearsAgoRFC(5));
+  if (oldYears) url += '&publishedBefore=' + encodeURIComponent(yearsAgoRFC(oldYears));
   var r = await fetch(url);
   var d = await r.json();
   if (!d.items) return [];
@@ -639,7 +639,7 @@ async function doAddRandomVideo(plId) {
   try {
     var videos;
     if (cfg.type === 'search') {
-      videos = await fetchChannelSearch(cfg.channelId, cfg.query, cfg.oldOnly);
+      videos = await fetchChannelSearch(cfg.channelId, cfg.query, cfg.oldYears);
     } else {
       videos = await fetchChannelUploads(cfg.channelId);
     }
@@ -704,7 +704,6 @@ function renderVideoList() {
     var timeStr = vp ? formatTime(vp.time) : '';
     return '<div class="video-item '+(i===currentIndex?'active':'')+' " id="vi-'+i+'" onclick="playVideo('+i+',0)">'+'<div class="vi-num">'+(i+1)+'</div>'+'<div class="vi-thumb">'+(thumb?'<img src="'+thumb+'" loading="lazy">':'')+(pct>1?'<div class="vi-progress" style="width:'+pct+'%"></div>':'')+'</div>'+'<div class="vi-info"><div class="vi-title">'+(s&&s.title||'')+'</div>'+(timeStr?'<div class="vi-watched">watched to '+timeStr+'</div>':'')+'</div>'+'<button class="vi-remove" onclick="event.stopPropagation();removeVideo('+i+')" title="Remove">✕</button>'+'</div>';
   }).join('');
-  // Scroll active item into view without fighting the page scroll
   setTimeout(function() {
     var el = document.getElementById('vi-'+currentIndex);
     if (el) el.scrollIntoView({ block: 'nearest' });

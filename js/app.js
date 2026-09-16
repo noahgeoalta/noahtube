@@ -1,4 +1,5 @@
 var API_KEY='AIzaSyBZN1fX8QCV1zRQNkANXK2rhOgdnS9mIuk';
+var WATCH_LATER_ID='_watch_later';
 var BASE='https://raw.githubusercontent.com/noahgeoalta/noahtube/main/Playlist%20images/';
 var BLOB_BASE='https://jsonblob.com/api/jsonBlob';
 var CHANNEL_ADD={
@@ -112,10 +113,31 @@ function renderHistory(){
     entries.push({pl:pl,idx:wd.currentIdx||0,lastVid:lastVid,timeStr:timeStr,watchedAt:lastTime?new Date(lastTime):null,updated:lastTime||0});
   });
   entries.sort(function(a,b){return b.updated-a.updated;});
+  /* merge in search history */
+  var searchHist=lsGet('nt_search_hist')||[];
+  searchHist.forEach(function(h){
+    entries.push({
+      pl:{id:'_search',name:'Search',thumb:h.thumbUrl},
+      idx:0,lastVid:h.videoId,timeStr:'',
+      watchedAt:new Date(h.watched),updated:h.watched,
+      isSearch:true,searchTitle:h.title,searchThumb:h.thumbUrl,searchVid:h.videoId
+    });
+  });
+  entries.sort(function(a,b){return b.updated-a.updated;});
   if(!entries.length){list.innerHTML='<div class="history-empty">Nothing watched yet. Open a playlist to get started.</div>';return;}
   list.innerHTML=entries.map(function(e){
     var pl=e.pl,timeAgo='';
     if(e.watchedAt){var diff=Date.now()-e.watchedAt.getTime(),mins=Math.floor(diff/60000);if(mins<60)timeAgo=mins+'m ago';else if(mins<1440)timeAgo=Math.floor(mins/60)+'h ago';else timeAgo=Math.floor(mins/1440)+'d ago';}
+    if(e.isSearch){
+      return '<div class="history-item" onclick="replaySearchVideo(\''+escAttr(e.searchVid)+'\',\''+escAttr(e.searchTitle)+'\',\''+escAttr(e.searchThumb||'')+'\')">'+
+        '<div class="hi-thumb">'+(e.searchThumb?'<img src="'+e.searchThumb+'" loading="lazy">':'')+'</div>'+
+        '<div class="hi-info"><div class="hi-playlist" style="color:#7a9050;">Search</div>'+
+        '<div class="hi-video">'+escHtml(e.searchTitle)+'</div>'+
+        (timeAgo?'<div class="hi-meta">'+timeAgo+'</div>':'')+
+        '</div>'+
+        '<button class="hi-resume" onclick="event.stopPropagation();replaySearchVideo(\''+escAttr(e.searchVid)+'\',\''+escAttr(e.searchTitle)+'\',\''+escAttr(e.searchThumb||'')+'\')">&#9654; Play</button>'+
+      '</div>';
+    }
     return '<div class="history-item" onclick="resumeFromHistory(\''+pl.id+'\',\''+escAttr(pl.name)+'\')">'+
       '<div class="hi-thumb">'+(pl.thumb?'<img src="'+pl.thumb+'" loading="lazy">':'')+'</div>'+
       '<div class="hi-info"><div class="hi-playlist">'+escHtml(pl.name)+'</div>'+
@@ -128,6 +150,17 @@ function renderHistory(){
 }
 
 function resumeFromHistory(plId,name){prevTab='history';openPlaylist(plId,name);}
+function replaySearchVideo(videoId,title,thumbUrl){
+  prevTab='history';
+  currentPlaylistId=null;
+  currentVideos=[{snippet:{resourceId:{videoId:videoId},title:title,thumbnails:thumbUrl?{default:{url:thumbUrl}}:{}}}];
+  currentIndex=0;
+  document.getElementById('player-title').textContent=title;
+  document.getElementById('player-add-btn').classList.add('hidden');
+  document.getElementById('vl-count').textContent='';
+  document.getElementById('video-list').innerHTML='';
+  showPlayer();adManual=false;setAdOverlay(false);playVideo(0,0);
+}
 
 /* ── Data helpers ── */
 function getCustomPlaylists(){return lsGet('nt_custom_playlists')||[];}
@@ -136,9 +169,38 @@ function getNameOverrides(){return lsGet('nt_name_overrides')||{};}
 function saveNameOverrides(o){lsSet('nt_name_overrides',o);}
 function getAllPlaylists(){
   var ov=getNameOverrides();
+  var wl={id:WATCH_LATER_ID,name:'Watch Later',thumb:'',custom:false,watchLater:true};
   var b=BUILTIN_PLAYLISTS.map(function(pl){return{id:pl.id,name:ov[pl.id]||pl.name,thumb:pl.thumb,custom:false};});
   var c=getCustomPlaylists().map(function(pl){return{id:pl.id,name:ov[pl.id]||pl.name,thumb:pl.thumb||'',custom:true};});
-  return b.concat(c);
+  return [wl].concat(b).concat(c);
+}
+
+/* ── Watch Later ── */
+function getWatchLaterVideos(){return lsGet('nt_watch_later')||[];}
+function saveWatchLaterVideos(arr){lsSet('nt_watch_later',arr);}
+function addToWatchLater(videoId,title,thumbUrl){
+  var vids=getWatchLaterVideos();
+  if(vids.some(function(v){return v.videoId===videoId;})){showToast('Already in Watch Later');return;}
+  vids.push({videoId:videoId,title:title,thumbUrl:thumbUrl||'',added:Date.now()});
+  saveWatchLaterVideos(vids);showToast('Added to Watch Later');
+}
+function removeFromWatchLater(videoId){
+  var vids=getWatchLaterVideos().filter(function(v){return v.videoId!==videoId;});
+  saveWatchLaterVideos(vids);
+}
+function wlToVideoItems(vids){
+  return vids.map(function(v){
+    var thumbs=v.thumbUrl?{default:{url:v.thumbUrl}}:{};
+    return{snippet:{resourceId:{videoId:v.videoId},title:v.title,thumbnails:thumbs},_wl:true};
+  });
+}
+
+/* ── Search history ── */
+function saveSearchPlay(videoId,title,thumbUrl){
+  var hist=lsGet('nt_search_hist')||[];
+  hist=hist.filter(function(h){return h.videoId!==videoId;});
+  hist.unshift({videoId:videoId,title:title,thumbUrl:thumbUrl||'',watched:Date.now()});
+  lsSet('nt_search_hist',hist.slice(0,50));
 }
 function isBuiltin(plId){return BUILTIN_PLAYLISTS.some(function(p){return p.id===plId;});}
 function lsGet(key){try{return JSON.parse(localStorage.getItem(key));}catch(e){return null;}}
@@ -229,7 +291,7 @@ async function doSearch(){
       var vid=it.id&&it.id.videoId,title=it.snippet&&it.snippet.title||'',channel=it.snippet&&it.snippet.channelTitle||'';
       var thumb=it.snippet&&it.snippet.thumbnails&&(it.snippet.thumbnails.medium||it.snippet.thumbnails.default);
       var thumbUrl=thumb&&thumb.url||'',secs=durMap[vid],durStr=secs?formatTime(secs):'';
-      return '<div class="sr-item" onclick="playFromSearch('+i+')">'+'<div class="sr-thumb">'+(thumbUrl?'<img src="'+thumbUrl+'" loading="lazy">':'')+'<div class="sr-play-overlay"><div class="sr-play-icon"><svg width="10" height="12" viewBox="0 0 10 12" fill="none"><path d="M1 1l8 5-8 5V1z" fill="#1a0f08"/></svg></div></div></div>'+'<div class="sr-info"><div class="sr-title">'+escHtml(title)+'</div><div class="sr-channel">'+escHtml(channel)+(durStr?' &middot; '+durStr:'')+'</div><div class="sr-actions"><button class="sr-add-btn" onclick="event.stopPropagation();openAddToPlaylist(\''+vid+'\',\''+escAttr(title)+'\')">+ Add to playlist</button></div></div></div>';
+      return '<div class="sr-item" onclick="playFromSearch('+i+')">'+'<div class="sr-thumb">'+(thumbUrl?'<img src="'+thumbUrl+'" loading="lazy">':'')+'<div class="sr-play-overlay"><div class="sr-play-icon"><svg width="10" height="12" viewBox="0 0 10 12" fill="none"><path d="M1 1l8 5-8 5V1z" fill="#1a0f08"/></svg></div></div></div>'+'<div class="sr-info"><div class="sr-title">'+escHtml(title)+'</div><div class="sr-channel">'+escHtml(channel)+(durStr?' &middot; '+durStr:'')+'</div><div class="sr-actions"><button class="sr-add-btn" onclick="event.stopPropagation();addToWatchLater(\''+vid+'\',\''+escAttr(title)+'\',\''+escAttr(thumbUrl)+'\')">&#9201; Watch Later</button><button class="sr-add-btn" onclick="event.stopPropagation();openAddToPlaylist(\''+vid+'\',\''+escAttr(title)+'\',\''+escAttr(thumbUrl)+'\')">+ Playlist</button></div></div></div>';
     }).join('')+'</div>';
   }catch(e){container.innerHTML='<div class="search-empty">Search failed: '+escHtml(e.message)+'</div>';}
 }
@@ -237,6 +299,9 @@ async function doSearch(){
 function playFromSearch(idx){
   var it=searchPlayQueue[idx];if(!it)return;
   var vid=it.id&&it.id.videoId,title=it.snippet&&it.snippet.title||'Search result';
+  var thumbObj=it.snippet&&it.snippet.thumbnails&&(it.snippet.thumbnails.medium||it.snippet.thumbnails.default);
+  var thumbUrl=thumbObj&&thumbObj.url||'';
+  saveSearchPlay(vid,title,thumbUrl);
   prevTab='search';currentPlaylistId=null;
   currentVideos=[{snippet:{resourceId:{videoId:vid},title:title,thumbnails:it.snippet&&it.snippet.thumbnails||{}}}];
   currentIndex=0;
@@ -259,10 +324,10 @@ function focusSearch(){
   showTab('search');
 }
 
-function openAddToPlaylist(vid,title){
+function openAddToPlaylist(vid,title,thumbUrl){
   pendingAddVideoId=vid;
   var sel=document.getElementById('add-to-pl-select');
-  sel.innerHTML=getAllPlaylists().map(function(pl){return'<option value="'+pl.id+'">'+escHtml(pl.name)+'</option>';}).join('');
+  sel.innerHTML=getAllPlaylists().filter(function(pl){return pl.id!==WATCH_LATER_ID;}).map(function(pl){return'<option value="'+pl.id+'">'+escHtml(pl.name)+'</option>';}).join('');
   openModal('add-to-pl-modal');
 }
 function confirmAddToPlaylist(){var plId=document.getElementById('add-to-pl-select').value;if(!plId||!pendingAddVideoId)return;var ok=addAddedId(plId,pendingAddVideoId);closeModal('add-to-pl-modal');showToast(ok?'Added to playlist':'Already in that playlist');}
@@ -349,7 +414,19 @@ async function renderPlaylists(){
       return{pl:pl,count:count,hasProgress:hasProgress,currentIdx:wd.currentIdx||0};
     }catch(e){return{pl:pl,count:'?',hasProgress:false,currentIdx:0};}
   }));
-  grid.innerHTML=cards.map(function(c){
+  /* Watch Later card (rendered separately, no API call needed) */
+  var wlVids=getWatchLaterVideos();
+  var wlThumbsHtml='';
+  var wlSlice=wlVids.slice(0,4);
+  for(var wi=0;wi<4;wi++){var wv=wlSlice[wi];wlThumbsHtml+=wv&&wv.thumbUrl?'<img src="'+wv.thumbUrl+'" loading="lazy">':'<div class="wl-empty"></div>';}
+  var wlCard='<div class="playlist-card" onclick="openPlaylist(\''+WATCH_LATER_ID+'\',\'Watch Later\')">'+
+    '<div class="card-thumb" style="display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:1px;background:#0a0603;">'+wlThumbsHtml+
+    '<div class="wl-card-count" style="position:absolute;bottom:5px;right:6px;background:rgba(0,0,0,0.78);color:#bbb;font-size:10px;padding:2px 5px;border-radius:2px;">&#9201; '+wlVids.length+'</div>'+
+    '</div>'+
+    '<div class="card-body"><div class="card-title">Watch Later</div>'+
+    '<div class="card-sub">'+(wlVids.length?wlVids.length+' saved':'Empty')+'</div></div></div>';
+
+  grid.innerHTML=wlCard+cards.filter(function(c){return c.pl.id!==WATCH_LATER_ID;}).map(function(c){
     var pl=c.pl,hasAdd=!!CHANNEL_ADD[pl.id];
     return '<div class="playlist-card" onclick="openPlaylist(\''+pl.id+'\',\''+escAttr(pl.name)+'\')">'+
       '<div class="card-thumb">'+(pl.thumb?'<img src="'+pl.thumb+'" alt="" loading="lazy">':'')+
@@ -390,8 +467,19 @@ async function openPlaylist(plId,name){
   document.getElementById('video-list').innerHTML='<div style="padding:20px;text-align:center;font-size:11px;color:#5a4020;">Loading...</div>';
   showPlayer();
   updateAddBtn();adManual=false;setAdOverlay(false);
+  if(plId===WATCH_LATER_ID){loadWatchLaterPlaylist();return;}
   try{await reloadPlaylist(true);}
   catch(e){document.getElementById('video-list').innerHTML='<div style="padding:20px;text-align:center;font-size:11px;color:#884444;">Failed: '+escHtml(e.message)+'</div>';}
+}
+
+function loadWatchLaterPlaylist(){
+  var vids=getWatchLaterVideos();
+  currentVideos=wlToVideoItems(vids);
+  document.getElementById('vl-count').textContent=currentVideos.length+' videos';
+  document.getElementById('player-add-btn').classList.add('hidden');
+  renderVideoList();
+  if(currentVideos.length>0)playVideo(0,0);
+  else document.getElementById('video-list').innerHTML='<div style="padding:30px;text-align:center;font-size:11px;color:#5a4020;">No videos saved yet. Search and tap Watch Later.</div>';
 }
 
 async function reloadPlaylist(autoPlay){
@@ -436,8 +524,9 @@ async function addRandomVideo(){if(!currentPlaylistId)return;await doAddRandomVi
 /* ── Video list ── */
 function removeVideo(idx){
   var v=currentVideos[idx];var vidId=v&&v.snippet&&v.snippet.resourceId&&v.snippet.resourceId.videoId;if(!vidId)return;
-  addRemovedId(currentPlaylistId,vidId);
-  var ad=getAddedIds(currentPlaylistId).filter(function(id){return id!==vidId;});lsSet('nt_add_'+currentPlaylistId,ad);
+  if(currentPlaylistId===WATCH_LATER_ID){removeFromWatchLater(vidId);}
+  else{addRemovedId(currentPlaylistId,vidId);}
+  if(currentPlaylistId!==WATCH_LATER_ID){var ad=getAddedIds(currentPlaylistId).filter(function(id){return id!==vidId;});lsSet('nt_add_'+currentPlaylistId,ad);}
   var wasActive=idx===currentIndex;currentVideos.splice(idx,1);
   if(wasActive&&currentVideos.length>0){currentIndex=Math.min(idx,currentVideos.length-1);playVideo(currentIndex,0);}
   else if(currentIndex>idx)currentIndex--;

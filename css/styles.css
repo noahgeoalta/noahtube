@@ -68,7 +68,7 @@ body::before { content:''; position:fixed; inset:0; background:rgba(4,2,1,0.78);
 }
 .search-bar input {
   background:none; border:none; outline:none; color:#e8d9c0;
-  font-family:'DM Sans',sans-serif; font-size:12px; font-weight:300; width:100%; min-width:0;
+  font-family:'DM Sans',sans-serif; font-size:16px; font-weight:300; width:100%; min-width:0;
 }
 .search-bar input::placeholder { color:#4a3520; }
 .search-bar svg { flex-shrink:0; color:#4a3520; }
@@ -141,6 +141,19 @@ body::before { content:''; position:fixed; inset:0; background:rgba(4,2,1,0.78);
 }
 .card-sub { font-size:10px; color:#6a5030; margin-top:2px; }
 .loading { grid-column:1/-1; text-align:center; padding:60px; font-size:12px; color:#a08050; letter-spacing:0.1em; }
+
+/* ── Watch Later card ── */
+.wl-card-thumb {
+  width:100%; aspect-ratio:16/9; overflow:hidden; position:relative;
+  background:#1a1008; display:grid; grid-template-columns:1fr 1fr; grid-template-rows:1fr 1fr; gap:1px;
+}
+.wl-card-thumb img { width:100%; height:100%; object-fit:cover; display:block; }
+.wl-card-thumb .wl-empty { background:#1a1008; }
+.wl-card-count {
+  position:absolute; bottom:5px; right:6px;
+  background:rgba(0,0,0,0.78); color:#bbb; font-size:10px; padding:2px 5px;
+  border-radius:2px; display:flex; align-items:center; gap:3px;
+}
 
 /* ── History ── */
 .history-title { font-family:'Cinzel',serif; font-size:13px; color:#6a5030; letter-spacing:0.08em; padding:0 0 12px; }
@@ -276,7 +289,7 @@ body::before { content:''; position:fixed; inset:0; background:rgba(4,2,1,0.78);
 .modal p { font-size:11px; color:#6a5030; line-height:1.6; margin-bottom:14px; }
 .modal input, .modal select {
   width:100%; background:rgba(8,4,2,0.85); border:1px solid rgba(120,80,30,0.4);
-  color:#e8d9c0; font-size:13px; font-family:'DM Sans',sans-serif;
+  color:#e8d9c0; font-size:16px; font-family:'DM Sans',sans-serif;
   padding:8px 11px; border-radius:3px; outline:none; margin-bottom:10px;
 }
 .modal input:focus, .modal select:focus { border-color:rgba(200,140,40,0.6); }

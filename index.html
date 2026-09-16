@@ -30,7 +30,10 @@
     </div>
 
     <div id="history-screen" style="display:none">
-      <div class="history-title">Recently Watched</div>
+      <div class="history-title" style="display:flex;align-items:center;justify-content:space-between;">
+        <span>Recently Watched</span>
+        <button onclick="clearHistory()" style="font-size:11px;padding:4px 10px;background:transparent;border:1px solid #4a3520;border-radius:4px;color:#4a3520;cursor:pointer;">Clear History</button>
+      </div>
       <div id="history-list"></div>
     </div>
 

@@ -221,6 +221,8 @@ function formatTime(s){if(!s)return '';return Math.floor(s/60)+':'+String(Math.f
 function yearsAgoRFC(n){var d=new Date();d.setFullYear(d.getFullYear()-n);return d.toISOString().replace(/\.\d{3}Z$/,'Z');}
 function escHtml(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 function escAttr(s){return String(s).replace(/'/g,'&#39;').replace(/"/g,'&quot;');}
+function decodeHtml(s){var t=document.createElement('textarea');t.innerHTML=String(s);return t.value;}
+function clearHistory(){if(!confirm('Clear all watch history?'))return;try{var keys=[];for(var i=0;i<localStorage.length;i++){var k=localStorage.key(i);if(k&&k.startsWith('nt_'))keys.push(k);}keys.forEach(function(k){localStorage.removeItem(k);});}catch(e){}renderHistory();}
 
 /* ── YouTube API ── */
 window.onYouTubeIframeAPIReady=function(){};
@@ -288,7 +290,7 @@ async function doSearch(){
     searchPlayQueue=items;
     if(!items.length){container.innerHTML='<div class="search-empty">No results found.</div>';return;}
     container.innerHTML='<div class="search-results">'+items.map(function(it,i){
-      var vid=it.id&&it.id.videoId,title=it.snippet&&it.snippet.title||'',channel=it.snippet&&it.snippet.channelTitle||'';
+      var vid=it.id&&it.id.videoId,title=decodeHtml(it.snippet&&it.snippet.title||''),channel=decodeHtml(it.snippet&&it.snippet.channelTitle||'');
       var thumb=it.snippet&&it.snippet.thumbnails&&(it.snippet.thumbnails.medium||it.snippet.thumbnails.default);
       var thumbUrl=thumb&&thumb.url||'',secs=durMap[vid],durStr=secs?formatTime(secs):'';
       return '<div class="sr-item" onclick="playFromSearch('+i+')">'+'<div class="sr-thumb">'+(thumbUrl?'<img src="'+thumbUrl+'" loading="lazy">':'')+'<div class="sr-play-overlay"><div class="sr-play-icon"><svg width="10" height="12" viewBox="0 0 10 12" fill="none"><path d="M1 1l8 5-8 5V1z" fill="#1a0f08"/></svg></div></div></div>'+'<div class="sr-info"><div class="sr-title">'+escHtml(title)+'</div><div class="sr-channel">'+escHtml(channel)+(durStr?' &middot; '+durStr:'')+'</div><div class="sr-actions"><button class="sr-add-btn" onclick="event.stopPropagation();addToWatchLater(\''+vid+'\',\''+escAttr(title)+'\',\''+escAttr(thumbUrl)+'\')">Watch Later</button><button class="sr-add-btn" onclick="event.stopPropagation();openAddToPlaylist(\''+vid+'\',\''+escAttr(title)+'\',\''+escAttr(thumbUrl)+'\')">+ Playlist</button></div></div></div>';
@@ -298,7 +300,7 @@ async function doSearch(){
 
 function playFromSearch(idx){
   var it=searchPlayQueue[idx];if(!it)return;
-  var vid=it.id&&it.id.videoId,title=it.snippet&&it.snippet.title||'Search result';
+  var vid=it.id&&it.id.videoId,title=decodeHtml(it.snippet&&it.snippet.title||'Search result');
   var thumbObj=it.snippet&&it.snippet.thumbnails&&(it.snippet.thumbnails.medium||it.snippet.thumbnails.default);
   var thumbUrl=thumbObj&&thumbObj.url||'';
   saveSearchPlay(vid,title,thumbUrl);

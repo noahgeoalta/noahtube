@@ -4,7 +4,18 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>NoahTube</title>
+<!-- Favicon -->
 <link rel="icon" type="image/x-icon" href="https://raw.githubusercontent.com/noahgeoalta/noahtube/main/orc.ico">
+<!-- iOS home screen icon -->
+<link rel="apple-touch-icon" sizes="180x180" href="https://raw.githubusercontent.com/noahgeoalta/noahtube/main/apple-touch-icon.png">
+<!-- Android / Chrome home screen -->
+<link rel="icon" type="image/png" sizes="192x192" href="https://raw.githubusercontent.com/noahgeoalta/noahtube/main/icon-192.png">
+<!-- PWA meta -->
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="NoahTube">
+<meta name="theme-color" content="#0e0703">
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500&family=Cinzel:wght@500;600&display=swap" rel="stylesheet">
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
@@ -101,7 +112,6 @@ body::before {
 }
 .filter-chip.active { border-color:rgba(180,110,20,0.6); color:#c8a050; background:rgba(30,18,4,0.9); }
 .filter-chip:hover { border-color:rgba(120,90,40,0.6); color:#907050; }
-/* Scrollable search results — shows ~5 items then scroll */
 #search-results-container {
   max-height: 480px;
   overflow-y: auto;
@@ -187,12 +197,12 @@ body::before {
 .controls-spacer { flex:1; }
 .vl-count-label { font-size:10px; color:#4a3520; }
 
-/* VIDEO LIST — single column, scrollable box ~5 items tall */
+/* VIDEO LIST — single column, scrollable ~5 items */
 .vl-header { display:flex; align-items:center; padding:8px 0 0; }
 .vl-label { font-size:10px; color:#5a4020; letter-spacing:0.08em; flex:1; }
 #video-list {
   margin-top:4px;
-  max-height: 380px; /* ~5 items */
+  max-height: 380px;
   overflow-y: auto;
   border: 1px solid rgba(80,50,15,0.25);
   border-radius: 3px;
@@ -436,7 +446,6 @@ var dragSrcIdx=null;
 var searchFilters={'no-shorts':true,'long':false,'hour':false};
 var pendingAddVideoId=null;
 var editingPlId=null;
-// When playing from search results, we store a temp list here
 var searchPlayQueue=[];
 
 function getCustomPlaylists(){return lsGet('nt_custom_playlists')||[];}
@@ -513,7 +522,6 @@ async function fetchChannelSearch(channelId,query,oldYears){
   return d.items.map(function(it){return{snippet:{resourceId:{videoId:it.id&&it.id.videoId},title:it.snippet&&it.snippet.title,thumbnails:it.snippet&&it.snippet.thumbnails||{}}};}).filter(function(it){return it.snippet.resourceId.videoId;});
 }
 
-// ── YOUTUBE SEARCH ──
 async function doSearch(){
   var q=(document.getElementById('search-input').value||document.getElementById('main-search-input').value||'').trim();
   if(!q){showToast('Enter a search term');return;}
@@ -551,7 +559,6 @@ async function doSearch(){
         return true;
       });
     }
-    // Save items for play-from-search
     searchPlayQueue=items;
     if(!items.length){container.innerHTML='<div class="search-empty">No results found.</div>';return;}
     container.innerHTML='<div class="search-results">'+items.map(function(it,i){
@@ -566,13 +573,10 @@ async function doSearch(){
   }catch(e){container.innerHTML='<div class="search-empty">Search failed: '+escHtml(e.message)+'</div>';}
 }
 
-// Play a video directly from search results
 function playFromSearch(idx){
   var it=searchPlayQueue[idx];if(!it)return;
   var vid=it.id&&it.id.videoId;
   var title=it.snippet&&it.snippet.title||'Search result';
-  var thumb=it.snippet&&it.snippet.thumbnails&&(it.snippet.thumbnails.medium||it.snippet.thumbnails.default);
-  // Build a single-item currentVideos entry so the player works normally
   currentPlaylistId=null;
   currentVideos=[{snippet:{resourceId:{videoId:vid},title:title,thumbnails:it.snippet&&it.snippet.thumbnails||{}}}];
   currentIndex=0;
@@ -601,7 +605,6 @@ function goToPlaylists(){
   document.getElementById('playlist-screen').style.display='block';
 }
 
-// ── ADD TO PLAYLIST (search) ──
 function openAddToPlaylist(vid,title){
   pendingAddVideoId=vid;
   var sel=document.getElementById('add-to-pl-select');
@@ -616,7 +619,6 @@ function confirmAddToPlaylist(){
   showToast(ok?'Added to playlist':'Already in that playlist');
 }
 
-// ── CUSTOM PLAYLIST CRUD ──
 function openNewPlaylistModal(){openModal('new-pl-modal');}
 async function addCustomPlaylist(){
   var raw=document.getElementById('new-pl-id').value.trim();
@@ -669,7 +671,6 @@ function showToast(msg){
   toastTimer=setTimeout(function(){t.classList.remove('show');},2600);
 }
 
-// ── SYNC ──
 function getBlobId(){return syncCode?localStorage.getItem('nt_blob_'+syncCode):null;}
 function gatherAllData(){
   var out={};
@@ -736,7 +737,6 @@ async function applySyncCode(){
 }
 function clearSyncCode(){syncCode=null;localStorage.removeItem('nt_sync_code');closeSyncModal();setSyncStatus('off');showToast('Sync cleared');}
 
-// ── RENDER PLAYLISTS ──
 async function renderPlaylists(){
   var grid=document.getElementById('playlist-grid');
   grid.innerHTML='<div class="loading">Loading...</div>';
@@ -761,7 +761,6 @@ async function renderPlaylists(){
 
 async function quickAdd(plId){showToast('Finding a video...');await doAddRandomVideo(plId);renderPlaylists();}
 
-// ── SHUFFLE ──
 async function shufflePlay(){
   showToast('Loading shuffle...');
   try{
@@ -785,7 +784,6 @@ async function shufflePlay(){
   }catch(e){showToast('Shuffle failed: '+e.message);}
 }
 
-// ── OPEN PLAYLIST ──
 async function openPlaylist(plId,name){
   currentPlaylistId=plId;
   document.getElementById('playlist-screen').style.display='none';
@@ -988,7 +986,6 @@ function goBack(){
   adManual=false;setAdOverlay(false);
   try{if(ytPlayer)ytPlayer.pauseVideo();}catch(e){}
   document.getElementById('player-screen').style.display='none';
-  // If we came from search, go back to search; otherwise playlists
   if(currentPlaylistId===null&&searchPlayQueue.length){
     document.getElementById('search-screen').style.display='block';
   }else{

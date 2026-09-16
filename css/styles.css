@@ -1,11 +1,10 @@
 * { margin:0; padding:0; box-sizing:border-box; }
-html { height:100%; }
+html, body { height:100%; overflow:hidden; overscroll-behavior:none; }
 body {
-  background-color:#1a0f08;
+  background-color:#050301;
   background-image:url('../Background.jpg');
   background-size:cover; background-attachment:fixed; background-position:center;
   color:#e8d9c0; font-family:'DM Sans',sans-serif; font-weight:300;
-  height:100%; overflow:hidden;
 }
 body::before { content:''; position:fixed; inset:0; background:rgba(4,2,1,0.78); pointer-events:none; z-index:0; }
 
@@ -33,8 +32,8 @@ body::before { content:''; position:fixed; inset:0; background:rgba(4,2,1,0.78);
 /* ── Bottom nav ── */
 .bottom-nav {
   flex-shrink:0;
-  display:flex; background:rgba(8,4,2,0.97); border-top:1px solid rgba(80,50,15,0.4);
-  backdrop-filter:blur(8px); z-index:50;
+  display:flex; background:#050301; border-top:1px solid rgba(80,50,15,0.4);
+  z-index:50;
   padding-bottom:env(safe-area-inset-bottom);
 }
 .nav-btn {

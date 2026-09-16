@@ -291,7 +291,7 @@ async function doSearch(){
       var vid=it.id&&it.id.videoId,title=it.snippet&&it.snippet.title||'',channel=it.snippet&&it.snippet.channelTitle||'';
       var thumb=it.snippet&&it.snippet.thumbnails&&(it.snippet.thumbnails.medium||it.snippet.thumbnails.default);
       var thumbUrl=thumb&&thumb.url||'',secs=durMap[vid],durStr=secs?formatTime(secs):'';
-      return '<div class="sr-item" onclick="playFromSearch('+i+')">'+'<div class="sr-thumb">'+(thumbUrl?'<img src="'+thumbUrl+'" loading="lazy">':'')+'<div class="sr-play-overlay"><div class="sr-play-icon"><svg width="10" height="12" viewBox="0 0 10 12" fill="none"><path d="M1 1l8 5-8 5V1z" fill="#1a0f08"/></svg></div></div></div>'+'<div class="sr-info"><div class="sr-title">'+escHtml(title)+'</div><div class="sr-channel">'+escHtml(channel)+(durStr?' &middot; '+durStr:'')+'</div><div class="sr-actions"><button class="sr-add-btn" onclick="event.stopPropagation();addToWatchLater(\''+vid+'\',\''+escAttr(title)+'\',\''+escAttr(thumbUrl)+'\')">&#9201; Watch Later</button><button class="sr-add-btn" onclick="event.stopPropagation();openAddToPlaylist(\''+vid+'\',\''+escAttr(title)+'\',\''+escAttr(thumbUrl)+'\')">+ Playlist</button></div></div></div>';
+      return '<div class="sr-item" onclick="playFromSearch('+i+')">'+'<div class="sr-thumb">'+(thumbUrl?'<img src="'+thumbUrl+'" loading="lazy">':'')+'<div class="sr-play-overlay"><div class="sr-play-icon"><svg width="10" height="12" viewBox="0 0 10 12" fill="none"><path d="M1 1l8 5-8 5V1z" fill="#1a0f08"/></svg></div></div></div>'+'<div class="sr-info"><div class="sr-title">'+escHtml(title)+'</div><div class="sr-channel">'+escHtml(channel)+(durStr?' &middot; '+durStr:'')+'</div><div class="sr-actions"><button class="sr-add-btn" onclick="event.stopPropagation();addToWatchLater(\''+vid+'\',\''+escAttr(title)+'\',\''+escAttr(thumbUrl)+'\')">Watch Later</button><button class="sr-add-btn" onclick="event.stopPropagation();openAddToPlaylist(\''+vid+'\',\''+escAttr(title)+'\',\''+escAttr(thumbUrl)+'\')">+ Playlist</button></div></div></div>';
     }).join('')+'</div>';
   }catch(e){container.innerHTML='<div class="search-empty">Search failed: '+escHtml(e.message)+'</div>';}
 }
@@ -421,7 +421,7 @@ async function renderPlaylists(){
   for(var wi=0;wi<4;wi++){var wv=wlSlice[wi];wlThumbsHtml+=wv&&wv.thumbUrl?'<img src="'+wv.thumbUrl+'" loading="lazy">':'<div class="wl-empty"></div>';}
   var wlCard='<div class="playlist-card" onclick="openPlaylist(\''+WATCH_LATER_ID+'\',\'Watch Later\')">'+
     '<div class="card-thumb" style="display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:1px;background:#0a0603;">'+wlThumbsHtml+
-    '<div class="wl-card-count" style="position:absolute;bottom:5px;right:6px;background:rgba(0,0,0,0.78);color:#bbb;font-size:10px;padding:2px 5px;border-radius:2px;">&#9201; '+wlVids.length+'</div>'+
+    '<div class="wl-card-count" style="position:absolute;bottom:5px;right:6px;background:rgba(0,0,0,0.78);color:#bbb;font-size:10px;padding:2px 5px;border-radius:2px;">'+wlVids.length+'</div>'+
     '</div>'+
     '<div class="card-body"><div class="card-title">Watch Later</div>'+
     '<div class="card-sub">'+(wlVids.length?wlVids.length+' saved':'Empty')+'</div></div></div>';

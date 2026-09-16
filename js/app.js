@@ -44,7 +44,7 @@ function showTab(tab){
   if(tab==='search'){
     setTimeout(function(){
       var inp=document.getElementById('search-input');
-      if(inp)inp.focus();
+      if(inp){inp.focus();inp.select();}
     },150);
   }
 }
@@ -53,7 +53,7 @@ function showPlayer(){
   document.getElementById('playlist-screen').style.display='none';
   document.getElementById('history-screen').style.display='none';
   document.getElementById('search-screen').style.display='none';
-  document.getElementById('player-screen').style.display='block';
+  document.getElementById('player-screen').style.display='flex';
   document.getElementById('nav-home').classList.remove('active');
   document.getElementById('nav-history').classList.remove('active');
   document.getElementById('nav-search').classList.remove('active');
@@ -135,7 +135,7 @@ function renderHistory(){
         '<div class="hi-video">'+escHtml(e.searchTitle)+'</div>'+
         (timeAgo?'<div class="hi-meta">'+timeAgo+'</div>':'')+
         '</div>'+
-        '<button class="hi-resume" onclick="event.stopPropagation();replaySearchVideo(\''+escAttr(e.searchVid)+'\',\''+escAttr(e.searchTitle)+'\',\''+escAttr(e.searchThumb||'')+'\')">&#9654; Play</button>'+
+        '<button class="hi-resume" onclick="event.stopPropagation();replaySearchVideo(\''+escAttr(e.searchVid)+'\',\''+escAttr(e.searchTitle)+'\',\''+escAttr(e.searchThumb||'')+'\')">Play</button>'+
       '</div>';
     }
     return '<div class="history-item" onclick="resumeFromHistory(\''+pl.id+'\',\''+escAttr(pl.name)+'\')">'+
@@ -144,7 +144,7 @@ function renderHistory(){
       '<div class="hi-video">Video #'+(e.idx+1)+(e.timeStr?' &middot; at '+e.timeStr:'')+'</div>'+
       (timeAgo?'<div class="hi-meta">'+timeAgo+'</div>':'')+
       '</div>'+
-      '<button class="hi-resume" onclick="event.stopPropagation();resumeFromHistory(\''+pl.id+'\',\''+escAttr(pl.name)+'\')">&#9654; Resume</button>'+
+      '<button class="hi-resume" onclick="event.stopPropagation();resumeFromHistory(\''+pl.id+'\',\''+escAttr(pl.name)+'\')">Resume</button>'+
     '</div>';
   }).join('');
 }
@@ -478,7 +478,7 @@ function loadWatchLaterPlaylist(){
   document.getElementById('vl-count').textContent=currentVideos.length+' videos';
   document.getElementById('player-add-btn').classList.add('hidden');
   renderVideoList();
-  if(currentVideos.length>0)playVideo(0,0);
+  if(currentVideos.length>0)playVideo(0,null);
   else document.getElementById('video-list').innerHTML='<div style="padding:30px;text-align:center;font-size:11px;color:#5a4020;">No videos saved yet. Search and tap Watch Later.</div>';
 }
 
@@ -539,7 +539,7 @@ function renderVideoList(){
     var s=v.snippet;var thumb=(s&&s.thumbnails&&(s.thumbnails.default||s.thumbnails.medium))?((s.thumbnails.default||s.thumbnails.medium).url||''):'';
     var vidId=s&&s.resourceId&&s.resourceId.videoId;var vp=vidId?getVideoProgress(plId,vidId):null;var dur=vidId?videoDurations[vidId]:null;var pct=(vp&&dur)?Math.min(100,(vp.time/dur)*100):0;var timeStr=vp?formatTime(vp.time):'';
     return '<div class="video-item'+(i===currentIndex?' active':'')+'" id="vi-'+i+'" draggable="true" ondragstart="dragStart(event,'+i+')" ondragover="dragOver(event,'+i+')" ondrop="dragDrop(event,'+i+')" ondragend="dragEnd(event)" onclick="playVideo('+i+',0)">'+
-      '<div class="vi-drag" onclick="event.stopPropagation()">&#8597;</div>'+
+      '<div class="vi-drag" onclick="event.stopPropagation()">&#9776;</div>'+
       '<div class="vi-num">'+(i+1)+'</div>'+
       '<div class="vi-thumb">'+(thumb?'<img src="'+thumb+'" loading="lazy">':'')+(pct>1?'<div class="vi-progress" style="width:'+pct+'%"></div>':'')+'</div>'+
       '<div class="vi-info"><div class="vi-title">'+(s&&s.title?escHtml(s.title):'')+'</div>'+(timeStr?'<div class="vi-watched">at '+timeStr+'</div>':'')+'</div>'+
@@ -564,7 +564,12 @@ function setAdOverlay(on){
   adOverlayOn=on;var overlay=document.getElementById('ad-overlay'),btn=document.getElementById('ad-toggle-btn');
   if(on){overlay.classList.add('active');btn.classList.add('active');try{preMuteVol=ytPlayer.getVolume();ytPlayer.mute();}catch(e){}}
   else{overlay.classList.remove('active');btn.classList.remove('active');try{ytPlayer.unMute();ytPlayer.setVolume(preMuteVol);}catch(e){}}}
-function toggleAdManual(){adManual=!adManual;setAdOverlay(adManual);}
+var adAutoTimer=null;
+function toggleAdManual(){
+  adManual=!adManual;setAdOverlay(adManual);
+  if(adAutoTimer){clearTimeout(adAutoTimer);adAutoTimer=null;}
+  if(adManual){adAutoTimer=setTimeout(function(){adManual=false;setAdOverlay(false);adAutoTimer=null;},8000);}
+}
 
 /* ── Player ── */
 function playVideo(idx,startTime){

@@ -170,12 +170,19 @@ body::before { content:''; position:fixed; inset:0; background:rgba(4,2,1,0.78);
 .hi-playlist { font-size:11px; font-family:'Cinzel',serif; color:#c8a050; letter-spacing:0.03em; margin-bottom:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .hi-video { font-size:10px; color:#7a6040; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-bottom:2px; }
 .hi-meta { font-size:9px; color:#4a3520; }
+.hi-actions { display:flex; align-items:center; gap:5px; flex-shrink:0; }
 .hi-resume {
   font-size:10px; font-family:'Cinzel',serif; color:#7a5830;
   border:1px solid rgba(120,80,30,0.4); background:rgba(14,9,4,0.88);
-  padding:3px 9px; border-radius:2px; cursor:pointer; white-space:nowrap; flex-shrink:0;
+  padding:3px 9px; border-radius:2px; cursor:pointer; white-space:nowrap;
 }
 .hi-resume:hover { color:#c8a050; border-color:rgba(200,140,40,0.6); }
+.hi-delete {
+  font-size:13px; line-height:1; color:#4a3520;
+  border:1px solid rgba(120,80,30,0.25); background:transparent;
+  padding:2px 6px; border-radius:2px; cursor:pointer; flex-shrink:0;
+}
+.hi-delete:hover { color:#c04040; border-color:rgba(192,64,64,0.5); }
 
 /* ── Search screen ── */
 .search-filters { display:flex; align-items:center; gap:8px; padding:0 0 10px; flex-wrap:wrap; }

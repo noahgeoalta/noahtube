@@ -136,7 +136,10 @@ function renderHistory(){
         '<div class="hi-video">'+escHtml(e.searchTitle)+'</div>'+
         (e.timeStr?'<div class="hi-meta">at '+e.timeStr+(timeAgo?' &middot; '+timeAgo:'')+'</div>':(timeAgo?'<div class="hi-meta">'+timeAgo+'</div>':''))+
         '</div>'+
+        '<div class="hi-actions">'+
         '<button class="hi-resume" onclick="event.stopPropagation();replaySearchVideo(\''+escAttr(e.searchVid)+'\',\''+escAttr(e.searchTitle)+'\',\''+escAttr(e.searchThumb||'')+'\')">Resume</button>'+
+        '<button class="hi-delete" onclick="event.stopPropagation();deleteSearchHistory(\''+escAttr(e.searchVid)+'\')">&#215;</button>'+
+        '</div>'+
       '</div>';
     }
     /* use stored video title/thumb if available */
@@ -150,7 +153,10 @@ function renderHistory(){
       '<div class="hi-video">'+escHtml(displayTitle)+'</div>'+
       (e.timeStr?'<div class="hi-meta">at '+e.timeStr+(timeAgo?' &middot; '+timeAgo:'')+'</div>':(timeAgo?'<div class="hi-meta">'+timeAgo+'</div>':''))+
       '</div>'+
+      '<div class="hi-actions">'+
       '<button class="hi-resume" onclick="event.stopPropagation();resumeFromHistory(\''+pl.id+'\',\''+escAttr(pl.name)+'\')">Resume</button>'+
+      '<button class="hi-delete" onclick="event.stopPropagation();deletePlaylistHistory(\''+pl.id+'\')">&#215;</button>'+
+      '</div>'+
     '</div>';
   }).join('');
 }
@@ -235,6 +241,8 @@ function escHtml(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').
 function escAttr(s){return String(s).replace(/'/g,'&#39;').replace(/"/g,'&quot;');}
 function decodeHtml(s){var t=document.createElement('textarea');t.innerHTML=String(s);return t.value;}
 function clearHistory(){if(!confirm('Clear all watch history?'))return;try{var keys=[];for(var i=0;i<localStorage.length;i++){var k=localStorage.key(i);if(k&&k.startsWith('nt_'))keys.push(k);}keys.forEach(function(k){localStorage.removeItem(k);});}catch(e){}renderHistory();}
+function deletePlaylistHistory(plId){lsSet('nt_'+plId,{});scheduleSyncPush();renderHistory();}
+function deleteSearchHistory(videoId){var hist=(lsGet('nt_search_hist')||[]).filter(function(h){return h.videoId!==videoId;});lsSet('nt_search_hist',hist);try{localStorage.removeItem('nt_sp_'+videoId);}catch(e){}scheduleSyncPush();renderHistory();}
 
 /* ── YouTube API ── */
 window.onYouTubeIframeAPIReady=function(){};

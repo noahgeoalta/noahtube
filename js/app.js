@@ -386,16 +386,43 @@ function getBlobId(){
   }
   return null;
 }
-function gatherAllData(){var out={};getAllPlaylists().forEach(function(pl){var wd=lsGet('nt_'+pl.id),rm=lsGet('nt_rm_'+pl.id),ad=lsGet('nt_add_'+pl.id);if(wd||rm||ad)out[pl.id]={wd:wd||{},rm:rm||[],ad:ad||[]};});return out;}
+function gatherAllData(){
+  var out={};
+  getAllPlaylists().forEach(function(pl){var wd=lsGet('nt_'+pl.id),rm=lsGet('nt_rm_'+pl.id),ad=lsGet('nt_add_'+pl.id);if(wd||rm||ad)out[pl.id]={wd:wd||{},rm:rm||[],ad:ad||[]};});
+  /* search history and per-video search progress */
+  out._searchHist=lsGet('nt_search_hist')||[];
+  var sp={};
+  try{for(var i=0;i<localStorage.length;i++){var k=localStorage.key(i);if(k&&k.startsWith('nt_sp_')){var vid=k.slice(6);sp[vid]=lsGet(k);}}}catch(e){}
+  out._searchProgress=sp;
+  return out;
+}
 function applyRemoteData(data){
   if(!data||typeof data!=='object')return;
   Object.keys(data).forEach(function(plId){
+    if(plId==='_searchHist'||plId==='_searchProgress')return;
     var remote=data[plId];if(!remote)return;
     var local=lsGet('nt_'+plId)||{};
     if(remote.wd){var merged=Object.assign({},local);merged.videos=Object.assign({},local.videos||{});var rv=remote.wd.videos||{};Object.keys(rv).forEach(function(vid){var lv=merged.videos[vid];if(!lv||rv[vid].updated>lv.updated)merged.videos[vid]=rv[vid];});if(remote.wd.currentIdx!=null&&(merged.currentIdx==null||remote.wd.currentIdx>merged.currentIdx))merged.currentIdx=remote.wd.currentIdx;lsSet('nt_'+plId,merged);}
     if(remote.rm){var lr=lsGet('nt_rm_'+plId)||[],mr=lr.slice();remote.rm.forEach(function(v){if(mr.indexOf(v)===-1)mr.push(v);});lsSet('nt_rm_'+plId,mr);}
     if(remote.ad){var la=lsGet('nt_add_'+plId)||[],ma=la.slice();remote.ad.forEach(function(v){if(ma.indexOf(v)===-1)ma.push(v);});lsSet('nt_add_'+plId,ma);}
   });
+  /* merge search history — dedupe by videoId, keep most recent watched */
+  if(Array.isArray(data._searchHist)){
+    var local=lsGet('nt_search_hist')||[];
+    var byId={};
+    local.forEach(function(h){byId[h.videoId]=h;});
+    data._searchHist.forEach(function(h){if(!byId[h.videoId]||h.watched>byId[h.videoId].watched)byId[h.videoId]=h;});
+    var merged=Object.values(byId).sort(function(a,b){return b.watched-a.watched;}).slice(0,50);
+    lsSet('nt_search_hist',merged);
+  }
+  /* merge search progress — keep most recent per video */
+  if(data._searchProgress&&typeof data._searchProgress==='object'){
+    Object.keys(data._searchProgress).forEach(function(vid){
+      var remote=data._searchProgress[vid];if(!remote)return;
+      var local=lsGet('nt_sp_'+vid);
+      if(!local||remote.updated>local.updated)lsSet('nt_sp_'+vid,remote);
+    });
+  }
 }
 async function syncPush(){
   if(!syncCode)return;

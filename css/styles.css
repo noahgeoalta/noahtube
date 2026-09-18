@@ -177,6 +177,12 @@ body::before { content:''; position:fixed; inset:0; background:rgba(4,2,1,0.78);
   padding:3px 9px; border-radius:2px; cursor:pointer; white-space:nowrap;
 }
 .hi-resume:hover { color:#c8a050; border-color:rgba(200,140,40,0.6); }
+.hi-wl {
+  font-size:10px; font-family:'Cinzel',serif; color:#7a5830;
+  border:1px solid rgba(120,80,30,0.4); background:rgba(14,9,4,0.88);
+  padding:3px 7px; border-radius:2px; cursor:pointer; white-space:nowrap;
+}
+.hi-wl:hover { color:#c8a050; border-color:rgba(200,140,40,0.6); }
 .hi-delete {
   font-size:13px; line-height:1; color:#4a3520;
   border:1px solid rgba(120,80,30,0.25); background:transparent;

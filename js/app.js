@@ -138,6 +138,7 @@ function renderHistory(){
         '</div>'+
         '<div class="hi-actions">'+
         '<button class="hi-resume" onclick="event.stopPropagation();replaySearchVideo(\''+escAttr(e.searchVid)+'\',\''+escAttr(e.searchTitle)+'\',\''+escAttr(e.searchThumb||'')+'\')">Resume</button>'+
+        '<button class="hi-wl" onclick="event.stopPropagation();addToWatchLater(\''+escAttr(e.searchVid)+'\',\''+escAttr(e.searchTitle)+'\',\''+escAttr(e.searchThumb||'')+'\')">+ WL</button>'+
         '<button class="hi-delete" onclick="event.stopPropagation();deleteSearchHistory(\''+escAttr(e.searchVid)+'\')">&#215;</button>'+
         '</div>'+
       '</div>';
@@ -155,6 +156,7 @@ function renderHistory(){
       '</div>'+
       '<div class="hi-actions">'+
       '<button class="hi-resume" onclick="event.stopPropagation();resumeFromHistory(\''+pl.id+'\',\''+escAttr(pl.name)+'\')">Resume</button>'+
+      (e.lastVid&&vdata?'<button class="hi-wl" onclick="event.stopPropagation();addToWatchLater(\''+escAttr(e.lastVid)+'\',\''+escAttr(vdata.title||'')+'\',\''+escAttr(vdata.thumb||'')+'\')">+ WL</button>':'')+
       '<button class="hi-delete" onclick="event.stopPropagation();deletePlaylistHistory(\''+pl.id+'\')">&#215;</button>'+
       '</div>'+
     '</div>';
@@ -452,7 +454,7 @@ function setSyncStatus(s){
   btn.className='tb-btn'+(s==='synced'?' synced':s==='syncing'?' syncing':'');
   lbl.textContent=s==='synced'?syncCode:s==='syncing'?'Syncing...':'Sync';
 }
-function openSyncModal(){document.getElementById('sync-code-input').value=syncCode||'';openModal('sync-modal');}
+function openSyncModal(){var inp=document.getElementById('sync-code-input');inp.value=syncCode||'';openModal('sync-modal');}
 function closeSyncModal(){closeModal('sync-modal');}
 async function generateNewCode(){
   var inp=document.getElementById('sync-code-input');
@@ -476,9 +478,26 @@ async function applySyncCode(){
   syncCode=val;localStorage.setItem('nt_sync_code',syncCode);
   closeSyncModal();setSyncStatus('syncing');
   var blobId=getBlobId();
-  if(blobId){await syncPull();}
-  else{await syncPush();}
+  if(blobId){
+    await syncPull();
+  } else {
+    /* No blob found — create one, then upgrade to NT- code so other devices can find it */
+    await syncPush();
+    blobId=getBlobId();
+    if(blobId&&!syncCode.startsWith('NT-')){
+      var ntCode='NT-'+parseInt(blobId).toString(36).toUpperCase();
+      localStorage.setItem('nt_blob_'+ntCode,blobId);
+      syncCode=ntCode;
+      localStorage.setItem('nt_sync_code',syncCode);
+    }
+    if(syncCode.startsWith('NT-')){
+      showToast('Sync ready! Use code: '+syncCode+' on all devices');
+    }
+  }
   setSyncStatus('synced');renderPlaylists();
+  /* refresh modal input if it's still open */
+  var inp=document.getElementById('sync-code-input');
+  if(inp)inp.value=syncCode||'';
 }
 function clearSyncCode(){syncCode=null;localStorage.removeItem('nt_sync_code');closeSyncModal();setSyncStatus('off');showToast('Sync cleared');}
 
@@ -567,7 +586,9 @@ function loadWatchLaterPlaylist(){
 async function reloadPlaylist(autoPlay){
   var plId=currentPlaylistId;var items=await fetchPlaylistItems(plId);var rm=getRemovedIds(plId),addedIds=getAddedIds(plId);
   var filtered=items.filter(function(it){var vid=it.snippet&&it.snippet.resourceId&&it.snippet.resourceId.videoId;return vid&&rm.indexOf(vid)===-1&&it.snippet.title!=='Private video'&&it.snippet.title!=='Deleted video';});
-  addedIds.forEach(function(vid){if(!filtered.find(function(it){return it.snippet&&it.snippet.resourceId&&it.snippet.resourceId.videoId===vid;}))filtered.push({snippet:{resourceId:{videoId:vid},title:'(Added video)',thumbnails:{}},_added:true});});
+  var needFetch=[];
+  addedIds.forEach(function(vid){if(!filtered.find(function(it){return it.snippet&&it.snippet.resourceId&&it.snippet.resourceId.videoId===vid;})){var item={snippet:{resourceId:{videoId:vid},title:'',thumbnails:{}},_added:true};filtered.push(item);needFetch.push(vid);}});
+  if(needFetch.length){try{var vr=await fetch('https://www.googleapis.com/youtube/v3/videos?part=snippet&id='+needFetch.join(',')+'&key='+API_KEY);var vd=await vr.json();var details={};(vd.items||[]).forEach(function(it){details[it.id]=it.snippet;});filtered.forEach(function(it){if(!it._added)return;var vid=it.snippet.resourceId.videoId;if(details[vid]){it.snippet.title=details[vid].title||'';it.snippet.thumbnails=details[vid].thumbnails||{};}else if(!it.snippet.title){it.snippet.title='(Added video)';}});}catch(e){filtered.forEach(function(it){if(it._added&&!it.snippet.title)it.snippet.title='(Added video)';});}}
   var order=lsGet('nt_order_'+plId);
   if(order&&order.length){var byId={};filtered.forEach(function(v){var id=v.snippet&&v.snippet.resourceId&&v.snippet.resourceId.videoId;if(id)byId[id]=v;});var ordered=order.map(function(id){return byId[id];}).filter(Boolean);var remaining=filtered.filter(function(v){var id=v.snippet&&v.snippet.resourceId&&v.snippet.resourceId.videoId;return id&&order.indexOf(id)===-1;});filtered=ordered.concat(remaining);}
   currentVideos=filtered;var wd=getWatchData(plId);

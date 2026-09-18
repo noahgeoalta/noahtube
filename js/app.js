@@ -40,14 +40,12 @@ function showTab(tab){
   document.getElementById('nav-history').classList.toggle('active',tab==='history');
   document.getElementById('nav-search').classList.toggle('active',tab==='search');
   renderTopHeader(tab);
+  if(tab==='search'){
+    var inp=document.getElementById('search-input');
+    if(inp){inp.focus();inp.select();}
+  }
   if(tab==='history')renderHistory();
   if(tab==='playlist')renderPlaylists();
-  if(tab==='search'){
-    setTimeout(function(){
-      var inp=document.getElementById('search-input');
-      if(inp){inp.focus();inp.select();}
-    },150);
-  }
 }
 
 function showPlayer(){

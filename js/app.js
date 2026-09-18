@@ -1,7 +1,8 @@
 var API_KEY='AIzaSyBZN1fX8QCV1zRQNkANXK2rhOgdnS9mIuk';
 var WATCH_LATER_ID='_watch_later';
 var BASE='https://raw.githubusercontent.com/noahgeoalta/noahtube/main/Playlist%20images/';
-var BLOB_BASE='https://jsonblob.com/api/jsonBlob';
+/* Replace with your Firebase Realtime Database URL (no trailing slash) */
+var FIREBASE_DB='YOUR_FIREBASE_DB_URL';
 var CHANNEL_ADD={
   'PLQLYASJYnD3SbbkJXfLHlEiCDtVClnQO3':{type:'search',channelId:'UCSLkuZD3BR_4vujh_NKwm1w',query:'Warcraft',oldYears:8,titleFilter:/\b(3v3|4v4|5v5|6v6|8v8)\b/i,label:'WTiiWarcraft'},
   'PLQLYASJYnD3Rn7nN-A8fO-x6RrYwUcGnF':{type:'search',channelId:'UCQeRaTukNYft1_6AZPACnog',query:'World of Warcraft',oldYears:5,label:'Asmongold'},
@@ -385,21 +386,15 @@ function closeModal(id){document.getElementById(id).classList.remove('open');}
 var toastTimer=null;
 function showToast(msg){var t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');if(toastTimer)clearTimeout(toastTimer);toastTimer=setTimeout(function(){t.classList.remove('show');},2600);}
 
-/* ── Sync ── */
-function getBlobId(){
-  if(!syncCode)return null;
-  var stored=localStorage.getItem('nt_blob_'+syncCode);
-  if(stored)return stored;
-  /* NT-XXXXX codes encode the blob ID in base36 — decode it so any device works */
-  if(/^NT-[0-9A-Z]+$/i.test(syncCode)){
-    try{var id=parseInt(syncCode.slice(3),36).toString();if(id&&id!=='NaN'){localStorage.setItem('nt_blob_'+syncCode,id);return id;}}catch(e){}
-  }
-  return null;
+/* ── Sync (Firebase Realtime Database) ── */
+function syncUrl(){
+  /* sanitise code so it's a valid Firebase key (no . # $ [ ]) */
+  var key=(syncCode||'').replace(/[.#$\[\]]/g,'-').toLowerCase();
+  return FIREBASE_DB+'/noahtube/'+encodeURIComponent(key)+'.json';
 }
 function gatherAllData(){
   var out={};
   getAllPlaylists().forEach(function(pl){var wd=lsGet('nt_'+pl.id),rm=lsGet('nt_rm_'+pl.id),ad=lsGet('nt_add_'+pl.id);if(wd||rm||ad)out[pl.id]={wd:wd||{},rm:rm||[],ad:ad||[]};});
-  /* search history and per-video search progress */
   out._searchHist=lsGet('nt_search_hist')||[];
   var sp={};
   try{for(var i=0;i<localStorage.length;i++){var k=localStorage.key(i);if(k&&k.startsWith('nt_sp_')){var vid=k.slice(6);sp[vid]=lsGet(k);}}}catch(e){}
@@ -416,36 +411,36 @@ function applyRemoteData(data){
     if(remote.rm){var lr=lsGet('nt_rm_'+plId)||[],mr=lr.slice();remote.rm.forEach(function(v){if(mr.indexOf(v)===-1)mr.push(v);});lsSet('nt_rm_'+plId,mr);}
     if(remote.ad){var la=lsGet('nt_add_'+plId)||[],ma=la.slice();remote.ad.forEach(function(v){if(ma.indexOf(v)===-1)ma.push(v);});lsSet('nt_add_'+plId,ma);}
   });
-  /* merge search history — dedupe by videoId, keep most recent watched */
   if(Array.isArray(data._searchHist)){
-    var local=lsGet('nt_search_hist')||[];
-    var byId={};
-    local.forEach(function(h){byId[h.videoId]=h;});
+    var localH=lsGet('nt_search_hist')||[],byId={};
+    localH.forEach(function(h){byId[h.videoId]=h;});
     data._searchHist.forEach(function(h){if(!byId[h.videoId]||h.watched>byId[h.videoId].watched)byId[h.videoId]=h;});
-    var merged=Object.values(byId).sort(function(a,b){return b.watched-a.watched;}).slice(0,50);
-    lsSet('nt_search_hist',merged);
+    lsSet('nt_search_hist',Object.values(byId).sort(function(a,b){return b.watched-a.watched;}).slice(0,50));
   }
-  /* merge search progress — keep most recent per video */
   if(data._searchProgress&&typeof data._searchProgress==='object'){
     Object.keys(data._searchProgress).forEach(function(vid){
-      var remote=data._searchProgress[vid];if(!remote)return;
-      var local=lsGet('nt_sp_'+vid);
-      if(!local||remote.updated>local.updated)lsSet('nt_sp_'+vid,remote);
+      var r=data._searchProgress[vid];if(!r)return;
+      var l=lsGet('nt_sp_'+vid);if(!l||r.updated>l.updated)lsSet('nt_sp_'+vid,r);
     });
   }
 }
 async function syncPush(){
-  if(!syncCode)return;
-  var data=gatherAllData(),blobId=getBlobId();
+  if(!syncCode||FIREBASE_DB==='YOUR_FIREBASE_DB_URL')return;
   try{
-    if(!blobId){var r=await fetch(BLOB_BASE,{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify(data)});if(r.ok){var loc=r.headers.get('location')||r.url;blobId=loc.split('/').pop();localStorage.setItem('nt_blob_'+syncCode,blobId);setSyncStatus('synced');}}
-    else{await fetch(BLOB_BASE+'/'+blobId,{method:'PUT',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify(data)});setSyncStatus('synced');}
+    await fetch(syncUrl(),{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(gatherAllData())});
+    setSyncStatus('synced');
   }catch(e){setSyncStatus('err');}
 }
 async function syncPull(){
-  if(!syncCode)return;var blobId=getBlobId();if(!blobId)return;
-  try{setSyncStatus('syncing');var r=await fetch(BLOB_BASE+'/'+blobId,{headers:{'Accept':'application/json'}});if(!r.ok){setSyncStatus('err');return;}var data=await r.json();applyRemoteData(data);setSyncStatus('synced');showToast('Watch data synced');}
-  catch(e){setSyncStatus('err');}
+  if(!syncCode||FIREBASE_DB==='YOUR_FIREBASE_DB_URL')return;
+  try{
+    setSyncStatus('syncing');
+    var r=await fetch(syncUrl());
+    if(!r.ok){setSyncStatus('err');return;}
+    var data=await r.json();
+    if(data)applyRemoteData(data);
+    setSyncStatus('synced');showToast('Synced');
+  }catch(e){setSyncStatus('err');}
 }
 function scheduleSyncPush(){if(syncTimer)clearTimeout(syncTimer);syncTimer=setTimeout(syncPush,3000);}
 function setSyncStatus(s){
@@ -456,48 +451,21 @@ function setSyncStatus(s){
 }
 function openSyncModal(){var inp=document.getElementById('sync-code-input');inp.value=syncCode||'';openModal('sync-modal');}
 function closeSyncModal(){closeModal('sync-modal');}
-async function generateNewCode(){
-  var inp=document.getElementById('sync-code-input');
-  inp.value='Creating...';inp.disabled=true;
-  try{
-    var r=await fetch(BLOB_BASE,{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify({})});
-    if(!r.ok)throw new Error('failed');
-    var loc=r.headers.get('location')||r.url;
-    var blobId=loc.split('/').pop();
-    var code='NT-'+parseInt(blobId).toString(36).toUpperCase();
-    inp.value=code;
-    localStorage.setItem('nt_blob_'+code,blobId);
-  }catch(e){
-    var w=['ORC','ELF','HERO','RUNE','BLADE','STORM','ZERG','TAUREN','DEMON','GRYPHON'];
-    inp.value=w[Math.floor(Math.random()*w.length)]+'-'+Math.floor(1000+Math.random()*8999);
-  }finally{inp.disabled=false;}
+function generateNewCode(){
+  var w=['ORC','ELF','HERO','RUNE','BLADE','STORM','ZERG','TAUREN','DEMON','GRYPHON'];
+  document.getElementById('sync-code-input').value=w[Math.floor(Math.random()*w.length)]+'-'+Math.floor(1000+Math.random()*8999);
 }
 async function applySyncCode(){
+  if(FIREBASE_DB==='YOUR_FIREBASE_DB_URL'){showToast('Set FIREBASE_DB in app.js first');return;}
   var val=document.getElementById('sync-code-input').value.trim();
   if(!val){showToast('Enter a sync code first');return;}
   syncCode=val;localStorage.setItem('nt_sync_code',syncCode);
   closeSyncModal();setSyncStatus('syncing');
-  var blobId=getBlobId();
-  if(blobId){
-    await syncPull();
-  } else {
-    /* No blob found — create one, then upgrade to NT- code so other devices can find it */
-    await syncPush();
-    blobId=getBlobId();
-    if(blobId&&!syncCode.startsWith('NT-')){
-      var ntCode='NT-'+parseInt(blobId).toString(36).toUpperCase();
-      localStorage.setItem('nt_blob_'+ntCode,blobId);
-      syncCode=ntCode;
-      localStorage.setItem('nt_sync_code',syncCode);
-    }
-    if(syncCode.startsWith('NT-')){
-      showToast('Sync ready! Use code: '+syncCode+' on all devices');
-    }
-  }
+  /* pull first — if the code exists elsewhere we merge their data in */
+  await syncPull();
+  /* then push our local data up (creates the key if it didn't exist) */
+  await syncPush();
   setSyncStatus('synced');renderPlaylists();
-  /* refresh modal input if it's still open */
-  var inp=document.getElementById('sync-code-input');
-  if(inp)inp.value=syncCode||'';
 }
 function clearSyncCode(){syncCode=null;localStorage.removeItem('nt_sync_code');closeSyncModal();setSyncStatus('off');showToast('Sync cleared');}
 

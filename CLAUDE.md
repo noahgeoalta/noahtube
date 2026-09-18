@@ -6,7 +6,7 @@ Personal YouTube front-end PWA. Single-page app — all logic is in `js/app.js`,
 
 - **YouTube Data API v3** — API key is hardcoded in `app.js` (`API_KEY`). Quota is the main constraint; avoid extra API calls.
 - **All state is localStorage** — watch progress, custom playlists, sync code, search history. Keys all prefixed `nt_`.
-- **Sync** — cross-device sync uses JSONBlob. Sync codes starting with `NT-` have the blob ID base36-encoded in the code itself so any device can connect without a prior lookup.
+- **Sync** — cross-device sync uses Firebase Realtime Database (free Spark tier). Data lives at `FIREBASE_DB/noahtube/{syncCode}.json`. Any human-readable code works on all devices. Set `FIREBASE_DB` at the top of `app.js` to the project's database URL. Rules must allow public read/write (test mode). Connect flow: pull remote → merge locally → push merged result.
 - **History** — saves video title, thumbnail, and timestamp in `wd.videos[vidId]` so the history tab shows real titles. Search video progress stored under `nt_sp_{videoId}`.
 - **No backend** — keep it that way unless there's a strong reason.
 

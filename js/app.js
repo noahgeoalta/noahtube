@@ -266,7 +266,8 @@ function timeAgo(t){
   return Math.floor(days/365)+'y ago';
 }
 function decodeHtml(s){var t=document.createElement('textarea');t.innerHTML=String(s);return t.value;}
-function clearHistory(){if(!confirm('Clear all watch history?'))return;try{var keys=[];for(var i=0;i<localStorage.length;i++){var k=localStorage.key(i);if(k&&k.startsWith('nt_'))keys.push(k);}keys.forEach(function(k){localStorage.removeItem(k);});}catch(e){}renderHistory();}
+/* only watch history: playlist progress, search history + search progress. Keeps Watch Later, playlists, sync, channels. */
+function clearHistory(){if(!confirm('Clear all watch history?'))return;try{var keys=['nt_search_hist'];getAllPlaylists().forEach(function(pl){keys.push('nt_'+pl.id);});for(var i=0;i<localStorage.length;i++){var k=localStorage.key(i);if(k&&k.startsWith('nt_sp_'))keys.push(k);}keys.forEach(function(k){localStorage.removeItem(k);});}catch(e){}scheduleSyncPush();renderHistory();}
 function deletePlaylistHistory(plId){lsSet('nt_'+plId,{});scheduleSyncPush();renderHistory();}
 function deleteSearchHistory(videoId){var hist=(lsGet('nt_search_hist')||[]).filter(function(h){return h.videoId!==videoId;});lsSet('nt_search_hist',hist);try{localStorage.removeItem('nt_sp_'+videoId);}catch(e){}scheduleSyncPush();renderHistory();}
 

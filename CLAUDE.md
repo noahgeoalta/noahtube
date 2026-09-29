@@ -8,6 +8,8 @@ Personal YouTube front-end PWA. Single-page app — all logic is in `js/app.js`,
 - **All state is localStorage** — watch progress, custom playlists, sync code, search history. Keys all prefixed `nt_`.
 - **Sync** — cross-device sync uses Firebase Realtime Database (free Spark tier). Data lives at `FIREBASE_DB/noahtube/{syncCode}.json`. Any human-readable code works on all devices. Set `FIREBASE_DB` at the top of `app.js` to the project's database URL. Rules must allow public read/write (test mode). Connect flow: pull remote → merge locally → push merged result.
 - **History** — saves video title, thumbnail, and timestamp in `wd.videos[vidId]` so the history tab shows real titles. Search video progress stored under `nt_sp_{videoId}`.
+- **Shorts detection** — `fetchVideoInfo` calls `videos?part=contentDetails,player&maxWidth=200` (1 unit for up to 50 IDs); Shorts come back with `embedHeight > embedWidth`. Vertical and ≤3 min = Short.
+- **Channels tab** — channel search costs 100 units (same as video search); opening a channel is ~3 units. Recently opened channels are kept in `nt_recent_channels` so re-opening them doesn't need a search.
 - **No backend** — keep it that way unless there's a strong reason.
 
 ## Development rules
